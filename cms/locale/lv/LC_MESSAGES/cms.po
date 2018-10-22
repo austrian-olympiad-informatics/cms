@@ -76,18 +76,21 @@ msgstr "Jūsu iesūtījuma izpilde ir pārtraukta ar norādīto signālu. To, ci
 msgid "Output is correct"
 msgstr "Izvaddati ir pareizi"
 
+# deva? sniedza? izvadīja?
 msgid "Your submission ran and gave the correct answer"
 msgstr "Jūsu iesūtījums tika izpildīts un izdeva pareizu atbildi"
 
 msgid "Output is partially correct"
 msgstr "Izvaddati ir daļēji pareizi"
 
+# deva? sniedza? izvadīja?
 msgid "Your submission ran and gave the partially correct answer"
 msgstr "Jūsu iesūtījums tika izpildīts un izdeva daļēji pareizu atbildi"
 
 msgid "Output isn't correct"
 msgstr "Izvaddati nav pareizi"
 
+# deva? sniedza? izvadīja?
 msgid "Your submission ran, but gave the wrong answer"
 msgstr "Jūsu iesūtījums tika izpildīts, bet izdeva nepareizu atbildi"
 
@@ -327,8 +330,8 @@ msgstr "Drukas uzdevumu glabātuvē ir radusies kļūme!"
 msgid "Please try again."
 msgstr "Lūdzu, mēģiniet vēlreiz."
 
-msgid "Too many submissions!"
-msgstr "Pārāk daudz iesūtījumu!"
+msgid "Submissions too frequent!"
+msgstr "Pārāk bieži iesūtījumi!"
 
 #, python-format
 msgid "You have reached the maximum limit of at most %d submissions among all tasks."
