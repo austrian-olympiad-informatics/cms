@@ -310,6 +310,25 @@ msgstr "Không thể lưu trữ yêu cầu in!"
 msgid "Please try again."
 msgstr "Hãy thử lại."
 
+msgid "Token request discarded"
+msgstr "Yêu cầu sử dụng token không được chấp nhận"
+
+msgid "Your request has been discarded because you have no tokens available."
+msgstr "Yêu cầu sử dụng token không được chấp nhận do bạn không còn token nào."
+
+msgid ""
+"Your request has been discarded because you already used a token on that "
+"submission."
+msgstr ""
+"Yêu cầu sử dụng token không được chấp nhận do bạn đã sử dụng token cho bài "
+"nộp đó."
+
+msgid "Question received"
+msgstr "Đã nhận được câu hỏi"
+
+msgid "Your question has been received, you will be notified when it is answered."
+msgstr "Câu hỏi của bạn đã được tiếp nhận, bạn sẽ được thông báo khi có câu trả lời."
+
 msgid "Too many submissions!"
 msgstr "Quá nhiều bài nộp!"
 
