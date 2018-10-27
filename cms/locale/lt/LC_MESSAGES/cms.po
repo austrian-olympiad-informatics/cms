@@ -328,6 +328,23 @@ msgstr "Nepavyko išsaugoti spausdinimo darbo!"
 msgid "Please try again."
 msgstr "Bandyk dar kartą."
 
+msgid "Token request discarded"
+msgstr "Žetono užklausa atmesta"
+
+msgid "Your request has been discarded because you have no tokens available."
+msgstr "Tavo užklausa atmesta, kadangi neturi žetonų."
+
+msgid ""
+"Your request has been discarded because you already used a token on that "
+"submission."
+msgstr "Užklausa buvo atmesta, kadangi šiam sprendimui žetoną jau naudojai."
+
+msgid "Question received"
+msgstr "Klausimas gautas"
+
+msgid "Your question has been received, you will be notified when it is answered."
+msgstr "Tavo klausimas gautas. Kai jis bus atsakytas, pasirodys pranešimas."
+
 msgid "Too many submissions!"
 msgstr "Per daug pateiktų sprendimų!"
 
