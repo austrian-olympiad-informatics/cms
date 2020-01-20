@@ -70,6 +70,21 @@ class Worker(Service):
         self._number_execution = 0
 
         self._fake_worker_time = fake_worker_time
+        self.precache_all_files()
+
+    def precache_all_files(self):
+        logging.info("Precaching all files")
+        with SessionGen() as session:
+            files = enumerate_files(session, skip_submissions=True,
+                                    skip_user_tests=True, skip_print_jobs=True)
+        logging.info("Found %d files", len(files))
+        start = time.time()
+        for digest in files:
+            try:
+                self.file_cacher.load(digest, if_needed=True)
+            except KeyError:
+                pass
+        logger.info("Precaching finished after %.1f seconds.", time.time() - start)
 
     @rpc_method
     def precache_files(self, contest_id):
