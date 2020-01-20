@@ -525,8 +525,7 @@ class FileCacher(object):
             atexit.register(lambda: rmtree(self.file_dir))
         else:
             self.file_dir = os.path.join(
-                config.cache_dir,
-                "fs-cache-%s-%d" % (service.name, service.shard))
+                config.cache_dir, "fs-cache")
         self._create_directory_or_die(self.file_dir)
 
         # Temp dir must be a subdirectory of file_dir to avoid cross-filesystem
