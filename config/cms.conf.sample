@@ -187,6 +187,15 @@
     "pdf_printing_allowed": false,
 
 
+    "_help": "Settings for discord bot",
+    "_help": "To set up the discord integration, create a new server/guild and two channels:",
+    "_help": "A channel for questions and a channel for live ranking results",
+    "_help": "Then go to the settings of each channel and create a new webhook, paste the URL into the webhook settings below",
+    "_help": "Additionally, set the base_url option to the external URL the admin interface can be contacted with",
+    "discord_base_url": "https://my-ioi.net:8889",
+    "discord_qa_webhook": "https://discordapp.com/api/webhooks/<WEBHOOK_TOKEN>>",
+    "discord_ranking_webhook": "https://discordapp.com/api/webhooks/<WEBHOOK_TOKEN>",
+
 
     "_help": "This is the end of this file."
 }
