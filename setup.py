@@ -164,6 +164,7 @@ setup(
             "cmsRemoveUser=cmscontrib.RemoveUser:main",
             "cmsSpoolExporter=cmscontrib.SpoolExporter:main",
             "cmsMake=cmstaskenv.cmsMake:main",
+            "cmsAOI=cmscontrib.aoi.__main__:main",
             "cmsPrometheusExporter=cmscontrib.PrometheusExporter:main",
             "cmsTelegramBot=cmscontrib.TelegramBot:main",
         ],
