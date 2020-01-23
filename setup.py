@@ -134,6 +134,7 @@ setup(
         "scripts/cmsRankingWebServer",
         "scripts/cmsInitDB",
         "scripts/cmsDropDB",
+        "scripts/cmsDiscordBot",
     ],
     entry_points={
         "console_scripts": [

@@ -1,0 +1,300 @@
+#!/usr/bin/env python3
+import logging
+import sys
+import time
+from typing import List
+
+import gevent
+import requests
+from sqlalchemy import func
+
+from cms import conf, default_argument_parser
+from cms.db import SessionGen, Session, Question, Task, User, SubmissionResult, Submission, Participation, \
+    test_db_connection, ask_for_contest
+from cms.io import Service
+from cmscommon.constants import SCORE_MODE_MAX_SUBTASK, SCORE_MODE_MAX
+
+logger = logging.getLogger(__name__)
+DEBUG = False
+
+
+def send_discord_message(webhook_url, content=None, embeds=None):
+    js = {}
+    if content is not None:
+        js['content'] = content
+    if embeds is not None:
+        js['embeds'] = embeds
+    wait = 1
+    while True:
+        try:
+            req = requests.post(webhook_url, json=js)
+            req.raise_for_status()
+            time.sleep(0.2)
+            return
+        except Exception:
+            logger.warning("Discord MSG failed:", exc_info=True)
+            time.sleep(wait)
+            wait = wait * 1.5 + 1
+
+
+BASE_URL = conf.config.discord_base_url
+DISCORD_QA_WEBHOOK = conf.config.discord_qa_webhook
+DISCORD_RANKING_WEBHOOK = conf.config.discord_ranking_webhook
+
+
+def format_user(user: User):
+    return f'{user.username} ({user.first_name} {user.last_name})'
+
+
+def get_scores(session, contest_id):
+    tasks_x = session.query(Task.name, Task.score_precision).filter(Task.contest_id == contest_id).order_by(Task.id)
+    tasknames = [x[0] for x in tasks_x]
+    taskprecisions = [x[1] for x in tasks_x]
+    usernames = [x[0] for x in session.query(User.username)]
+
+    scores = {k: [0] * (len(tasknames) + 1) for k in usernames}
+
+    q = session.query(Task.name, User.username, SubmissionResult.score, SubmissionResult.score_details) \
+        .join(SubmissionResult.submission) \
+        .filter(SubmissionResult.score > 0) \
+        .join(Submission.participation) \
+        .join(Participation.user) \
+        .join(Submission.task) \
+        .filter(Participation.hidden == False) \
+        .filter(Participation.contest_id == contest_id) \
+        .filter(SubmissionResult.dataset_id == Task.active_dataset_id) \
+        .filter(Submission.official) \
+        .filter(Task.score_mode == SCORE_MODE_MAX_SUBTASK) \
+        .group_by(Task.id, User.id, SubmissionResult)
+    subscores = {}
+    for task_name, username, sr_score, score_details in q:
+        x = subscores.setdefault((username, task_name), {})
+        try:
+            subtask_scores = dict(
+                (subtask["idx"],
+                 subtask["score_fraction"] * subtask["max_score"])
+                for subtask in score_details)
+        except Exception:
+            subtask_scores = None
+
+        if subtask_scores is None or len(subtask_scores) == 0:
+            # Task's score type is not group, assume a single subtask.
+            subtask_scores = {1: sr_score}
+
+        for idx, score in subtask_scores.items():
+            x[idx] = max(x.get(idx, 0.0), score)
+    for (username, task_name), x in subscores.items():
+        s = sum(x.values())
+        scores[username][tasknames.index(task_name)] = s
+        scores[username][-1] += s
+
+    q = session.query(Task.name, User.username, func.max(SubmissionResult.score)) \
+        .join(SubmissionResult.submission) \
+        .filter(SubmissionResult.score > 0) \
+        .join(Submission.participation) \
+        .join(Participation.user) \
+        .join(Submission.task) \
+        .filter(Participation.hidden == False) \
+        .filter(Participation.contest_id == contest_id) \
+        .filter(SubmissionResult.dataset_id == Task.active_dataset_id) \
+        .filter(Submission.official) \
+        .filter(Task.score_mode == SCORE_MODE_MAX) \
+        .group_by(Task.id, User.id)
+
+    for task, username, score in q:
+        scores[username][tasknames.index(task)] = score
+        scores[username][-1] += score
+
+    return scores, tasknames, taskprecisions
+
+
+def print_table(scores, highlightuser, tasknames, taskprecisions, top_n=10):
+    scores_l = [[user, *points] for user, points in scores.items()]
+    scores_l.sort(key=lambda x: -x[-1])
+    rank = 0
+    scores_l2 = []
+    last_score = -1
+    max_prec = max(taskprecisions) if taskprecisions else 0
+    for i, row in enumerate(scores_l):
+        p = row[-1]
+        if p != last_score:
+            rank = i+1
+        last_score = p
+        nrow = [str(rank), row[0]]
+        for i, prec in enumerate(taskprecisions):
+            nrow.append('{0:.{1}f}'.format(row[i+1], prec))
+        nrow.append('{0:.{1}f}'.format(row[-1], max_prec))
+        scores_l2.append(nrow)
+
+    table_l = []
+    for items in scores_l2:
+        table_l.append([str(x) for x in items])
+    header = ["#", "User", *tasknames, "Total"]
+    field_len = [0] * len(header)
+    for line in [header] + table_l:
+        for i, field in enumerate(line):
+            field_len[i] = max(field_len[i], len(field))
+
+    table_fields = [header, ['-' * flen for flen in field_len]]
+    table_fields += table_l
+
+    lines = []
+    found_highlight = False
+    for i, line_l in enumerate(table_fields):
+        username = line_l[1].strip()
+        is_highlight = username == highlightuser
+        if i > top_n and not is_highlight:
+            continue
+        sl = []
+        for field, flen in zip(line_l, field_len):
+            sl.append('{0:{1}}'.format(field, flen))
+        s = ('+ ' if is_highlight else '  ') + ' '.join(sl)
+        found_highlight = found_highlight or is_highlight
+        lines.append(s)
+        if i == top_n and not found_highlight:
+            lines.append('  ...')
+    return '\n'.join(lines)
+
+
+class DiscordBotService(Service):
+    def __init__(self, shard, contest_id):
+        super().__init__()
+        self.contest_id = contest_id
+        self.last_ann_id = -1
+        self.last_sub_id = -1
+        self.old_scores = {}
+
+    def run(self):
+        with SessionGen() as session:
+            self.last_ann_id = session.query(func.max(Question.id)).scalar() or -1
+            self.last_sub_id = session.query(func.max(Submission.id)).scalar() or -1
+            while True:
+                try:
+                    self.do_ann_sweep(session)
+                    self.do_submission_sweep(session)
+                except KeyboardInterrupt:
+                    logger.info("Terminating...")
+                    break
+                except Exception as e:
+                    logger.warning("Sweep failed:", exc_info=True)
+
+                gevent.sleep(5)
+
+    def do_ann_sweep(self, session: Session):
+        qs: List[Question] = session.query(Question) \
+            .filter(Question.id > self.last_ann_id) \
+            .all()
+        if not qs:
+            return
+
+        for q in qs:
+            part = q.participation
+            user = part.user
+            contest_id = part.contest_id
+            user_url = f"{BASE_URL}/contest/{contest_id}/user/{user.id}/edit"
+            reply_url = f"{BASE_URL}/contest/{contest_id}/questions"
+            uname = format_user(user)
+            embed = {
+                "title": q.subject,
+                "author": {
+                    "name": uname,
+                    "url": user_url,
+                    "icon_url": "https://cdn.discordapp.com/embed/avatars/0.png",
+                },
+                "url": reply_url,
+                "description": f'{q.text}\n\n[View Question#{q.id}]({reply_url}) by [{uname}]({user_url})',
+                "timestamp": q.question_timestamp.isoformat(),
+            }
+            send_discord_message(DISCORD_QA_WEBHOOK, embeds=[embed])
+
+        self.last_ann_id = max(q.id for q in qs)
+
+    def do_submission_sweep(self, session: Session):
+        top_scored = session.query(func.max(Submission.id)) \
+            .filter(Submission.official) \
+            .join(Submission.participation) \
+            .filter(Participation.hidden == False) \
+            .filter(Participation.contest_id == self.contest_id) \
+            .join(Submission.results) \
+            .filter(SubmissionResult.score > 0) \
+            .scalar()
+        if self.last_sub_id == top_scored:
+            # print(f"Sub Id same last={last_sub_id} top_scored={top_scored}")
+            return
+
+        scores, tasknames, taskprecisions = get_scores(session, self.contest_id)
+        if self.old_scores and scores:
+            if len(next(iter(self.old_scores.values()))) != len(next(iter(scores.values()))):
+                # Task added or removed, reset old_scores
+                self.old_scores = {}
+
+        for username, points in scores.items():
+            total_points = points[-1]
+            old_points = self.old_scores.get(username, [0] * len(points))
+            old_total_points = old_points[-1]
+            if old_total_points == total_points or (not self.old_scores and not DEBUG):
+                continue
+
+            # Score has changed for user
+            # Identify where it came from
+            for i, taskname in enumerate(tasknames):
+                if old_points[i] == points[i]:
+                    continue
+
+                user = session.query(User) \
+                    .filter(User.username == username) \
+                    .one()
+                subq = session.query(func.max(Submission.id)) \
+                    .join(Submission.participation).join(Participation.user).filter(User.id == user.id) \
+                    .filter(Submission.official) \
+                    .join(Submission.results).filter(SubmissionResult.score > 0) \
+                    .join(Submission.task).filter(Task.name == taskname) \
+                    .filter(Participation.contest_id == self.contest_id)
+                submission = session.query(Submission).filter(Submission.id == subq).one()
+
+                submission_url = f"{BASE_URL}/submission/{submission.id}"
+                user_url = f"{BASE_URL}/contest/{self.contest_id}/user/{user.id}/edit"
+                point_diff = points[i] - old_points[i]
+
+                # Update score (if multiple changes in one sweep)
+                self.old_scores[username] = points
+
+                table = print_table(self.old_scores, username, tasknames, taskprecisions)
+                prec = taskprecisions[tasknames.index(taskname)]
+                point_diff_s = '{0:+.{1}f}'.format(point_diff, prec)
+                point_s = '{0:.{1}f}'.format(points[i], prec)
+                uname = format_user(user)
+                text = (
+                    f'```diff'
+                    f'\n{table}\n'
+                    f'```\n'
+                    f'[View Submission#{submission.id}]({submission_url}) by [{uname}]({user_url})'
+                )
+                embed = {
+                    "title": f"{user.username}: {taskname} {point_diff_s}P ({point_s}P)",
+                    "author": {
+                        "name": uname,
+                        "url": user_url,
+                        "icon_url": "https://cdn.discordapp.com/embed/avatars/0.png",
+                    },
+                    "url": submission_url,
+                    "description": text,
+                    "timestamp": submission.timestamp.isoformat(),
+                }
+                send_discord_message(DISCORD_RANKING_WEBHOOK, embeds=[embed])
+
+        self.old_scores = scores
+        self.last_sub_id = top_scored
+
+
+def main():
+    test_db_connection()
+
+    return default_argument_parser("Discord Bot Service for CMS",
+                                   DiscordBotService,
+                                   ask_contest=ask_for_contest).run()
+
+
+if __name__ == "__main__":
+    sys.exit(main() or 0)
+
