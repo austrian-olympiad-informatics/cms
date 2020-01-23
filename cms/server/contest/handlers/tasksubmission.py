@@ -34,6 +34,10 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
+
+import hashlib
+import os
+
 from future.builtins.disabled import *  # noqa
 from future.builtins import *  # noqa
 
@@ -316,7 +320,38 @@ class SubmissionDetailsHandler(ContestHandler):
             details = score_type.get_html_details(
                 raw_details, feedback_level, translation=self.translation)
 
-        self.render("submission_details.html", sr=sr, details=details,
+        meme_url = None
+        if config.memes_path is not None:
+            score = sr.score
+
+            parsed = []
+            for fname in os.listdir(config.memes_path):
+                path = os.path.join(config.memes_path, fname)
+                if not os.path.isfile(path):
+                    continue
+                m = re.match(r'^(\d+)-(\d+)-.*\.(jpeg|jpg|png|gif)$', fname)
+                if m is None:
+                    continue
+                parsed.append((int(m.group(1)), int(m.group(2)), fname))
+
+            # Filter the list of parsed files for matching score
+            candidates = []
+            for minp, maxp, f in parsed:
+                if minp <= score <= maxp:
+                    candidates.append(f)
+            candidates.sort()
+
+            # Are there any candidate files?
+            if candidates:
+                # Ensure submission always gets the same meme and pattern isn't
+                # too simple (like modulo of submission id)
+                sha = hashlib.md5()
+                sha.update(str(submission.id).encode())
+                i = int(sha.hexdigest()[:8], 16)
+                chosen = candidates[i % len(candidates)]
+                meme_url = f"/memes/{chosen}"
+
+        self.render("submission_details.html", sr=sr, details=details, meme_url=meme_url,
                     **self.r_params)
 
 

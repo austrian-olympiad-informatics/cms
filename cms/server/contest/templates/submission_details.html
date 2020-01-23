@@ -6,6 +6,10 @@
 </div>
 {% endif %}
 
+{% if meme_url is not none %}
+<img class="score_meme" src="{{ meme_url }}">
+{% endif %}
+
 {% if sr is not none and sr.compiled() %}
 <h3>{% trans %}Compilation output{% endtrans %}</h3>{# TODO: trim long outputs and add facility to see raw #}
 <table class="table table-bordered" style="table-layout: fixed;">

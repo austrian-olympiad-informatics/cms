@@ -1027,3 +1027,31 @@ td.token_rules p:last-child {
     background-color: white;
     border: 1px solid #e5e5e5;
 }
+
+
+
+.modal {
+    /* margin: -100px 0 0 -100px; */
+    margin: -250px 0 0 -280px;
+}
+
+.modal-body {
+    /* max-height: 400px; */
+    max-height: 600px;
+}
+
+#submission_detail .modal-body {
+    /* height: 400px; */
+    height: 600px;
+}
+
+#submission_detail {
+    margin-top: -350px;
+}
+
+.score_meme {
+    margin-left: auto;
+    margin-right: auto;
+    width: 60%;
+    display: block;
+}

@@ -133,6 +133,12 @@
     "_help": "STL documentation path in the system (exposed in CWS).",
     "stl_path": "/usr/share/cppreference/doc/html/",
 
+    "_help": "A path containing memes to show in the contest web server interface (leave null for no memes)",
+    "_help": "The files in the folder should have the following format <MINP>-<MAXP>-<NAME>.<EXT>",
+    "_help": "Where MINP, MAXP are integers that denote the range of scores this meme is applied to",
+    "_help": "NAME can be an arbitrary string to help you organize memes.",
+    "_help": "Valid extensions are .jpg, .jpeg, .png and .gif",
+    "memes_path": null,
 
 
     "_section": "AdminWebServer",
