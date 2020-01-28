@@ -47,6 +47,7 @@ logger = logging.getLogger(__name__)
 
 
 EVAL_USER_OUTPUT_FILENAME = "user_output.txt"
+EVAL_SUBMISSION_FILENAME = "submission.txt"
 
 
 def create_sandbox(file_cacher: FileCacher, name: str | None = None) -> Sandbox:
@@ -272,6 +273,10 @@ def eval_output(
             assert user_output_digest is not None
             sandbox.create_file_from_storage(EVAL_USER_OUTPUT_FILENAME,
                                              user_output_digest)
+
+        if len(job.files) == 1:
+            digest = next(iter(job.files.values())).digest
+            sandbox.create_file_from_storage(EVAL_SUBMISSION_FILENAME, digest)
 
         checker_digest = job.managers[checker_codename].digest \
             if checker_codename in job.managers else None
