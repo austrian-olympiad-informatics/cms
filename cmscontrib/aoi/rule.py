@@ -379,9 +379,20 @@ class MakeRule(CommandRule):
 
 class ZipRule(Rule):
     def __init__(self, args: str, **kwargs):
-        self._files = [Path(x) for x in shlex.split(args)]
+        self._members = []
+        input_files = []
+        for arg in shlex.split(args):
+            if '=' in arg:
+                zipname, pathname = arg.split('=')
+            else:
+                zipname = arg
+                pathname = arg
+            path = Path(pathname)
+            self._members.append((zipname, path))
+            input_files.append(path)
+
         super().__init__(
-            input_files=self._files,
+            input_files=input_files,
             output_extension='.zip',
             entropy=kwargs.pop('entropy', ''),
             **kwargs,
@@ -389,5 +400,5 @@ class ZipRule(Rule):
 
     def _execute(self):
         with zipfile.ZipFile(self.output_file, 'w') as zipf:
-            for x in self._files:
-                zipf.writestr(x.name, x.read_bytes())
+            for zipname, path in self._members:
+                zipf.writestr(zipname, path.read_bytes())
