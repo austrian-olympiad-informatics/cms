@@ -46,6 +46,7 @@ def flatten_testcase_globs(value):
             if isinstance(out, list):
                 raise vol.Invalid("Output cannot be a glob expression if input is not!")
             new_testcases.append(testcase)
+            continue
 
         if out is not None:
             if not isinstance(out, list):
