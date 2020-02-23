@@ -1,12 +1,8 @@
 import argparse
-import hashlib
 import logging
 import os
-import shlex
 import shutil
-import subprocess
 import sys
-from abc import ABC
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Union, Dict
@@ -18,15 +14,15 @@ import yaml
 import yaml.constructor
 
 from cms.db import test_db_connection
-from cmscommon.constants import SCORE_MODE_MAX_SUBTASK, SCORE_MODE_MAX
 import cms.log
 from cmscontrib.aoi.const import CONF_EXTENDS, CONF_GCC_ARGS, CONF_LATEX_CONFIG, CONF_LATEXMK_ARGS, \
     CONF_ADDITIONAL_FILES, CONF_NAME, CONF_TEST_SUBMISSIONS, CONF_SAMPLE_SOLUTION, CONF_SUBTASKS, CONF_TESTCASES, \
     CONF_OUTPUT, CONF_INPUT, CONF_SCORE_OPTIONS, CONF_STATEMENTS, CONF_ATTACHMENTS, CONF_FEEDBACK_LEVEL, CONF_LONG_NAME, \
     CONF_DECIMAL_PLACES, SCORE_MODES, CONF_MODE, CONF_GRADER, CONF_CHECKER, CONF_TYPE, CONF_POINTS, CONF_TASK_TYPE, \
-    CONF_TIME_LIMIT, CONF_MEMORY_LIMIT, SCORE_TYPES, TASK_TYPES
+    CONF_TIME_LIMIT, CONF_MEMORY_LIMIT, SCORE_TYPES, TASK_TYPES, CONF_CPP_CONFIG
 from cmscontrib.aoi.core import core, CMSAOIError
 from cmscontrib.aoi.rule import Rule, ShellRule
+from cmscontrib.aoi.util import copytree, copy_if_necessary
 from cmscontrib.aoi.validation import CONFIG_SCHEMA
 from cmscontrib.aoi.yaml_loader import load_yaml, AOITag
 
@@ -104,11 +100,13 @@ def main():
                         default='trainer')
     parser.add_argument('--clean', help="Clean the temporary directory before running.",
                         action='store_true')
+    parser.add_argument('--only-build', help="Only build files, do not upload them.",
+                        action='store_true')
     parser.add_argument('TASK_DIR', help="The directory of task to upload.")
     args = parser.parse_args()
 
     os.chdir(str(args.TASK_DIR))
-    core.task_dir = Path(args.TASK_DIR).absolute()
+    core.task_dir = Path.cwd()
     if args.clean and core.internal_dir.is_dir():
         shutil.rmtree(core.internal_dir)
     core.internal_dir.mkdir(exist_ok=True)
@@ -125,6 +123,9 @@ def main_run(args):
     task_file = core.task_dir / 'task.yaml'
     _LOGGER.info("Reading task config %s", task_file)
 
+    if not task_file.is_file():
+        raise CMSAOIError(f"task.yaml file {task_file} does not exist!")
+
     try:
         config = load_yaml_with_extends(task_file)
     except yaml.YAMLError as err:
@@ -140,17 +141,43 @@ def main_run(args):
         _LOGGER.error(humanize_error(config, err))
         raise CMSAOIError() from err
 
-    core.gcc_args = config[CONF_GCC_ARGS]
     latex_config = config[CONF_LATEX_CONFIG]
     core.latexmk_args = latex_config[CONF_LATEXMK_ARGS]
     core.latex_additional_files = [Path(x) for x in latex_config[CONF_ADDITIONAL_FILES]]
+    core.gcc_args = config[CONF_CPP_CONFIG][CONF_GCC_ARGS]
+    core.config = config
+
+    copytree(core.task_dir, core.internal_build_dir, ignore={core.internal_dir})
 
     # Find rules (stuff to be executed) in config and replace them by the resulting filename
     all_rules, config = find_rules(config)
+    core.config = config
 
     # Execute all rules synchronously
     for rule in all_rules.values():
         rule.ensure()
+
+    # Copy results to new directory (so that testcases can be searched more easily)
+    core.result_dir.mkdir(exist_ok=True)
+    for i, subtask in enumerate(config[CONF_SUBTASKS], start=1):
+        for j, testcase in enumerate(subtask[CONF_TESTCASES], start=1):
+            copy_if_necessary(Path(testcase[CONF_INPUT]),
+                              core.result_dir / f'{i:02d}_{j:02d}.in')
+            copy_if_necessary(Path(testcase[CONF_OUTPUT]),
+                              core.result_dir / f'{i:02d}_{j:02d}.out')
+    for lang, statement in config[CONF_STATEMENTS].items():
+        copy_if_necessary(Path(statement), core.result_dir / f'{lang}.pdf')
+    for fname, attachment in config[CONF_ATTACHMENTS].items():
+        copy_if_necessary(Path(attachment), core.result_dir / fname)
+    if CONF_CHECKER in config:
+        copy_if_necessary(Path(config[CONF_CHECKER]), core.result_dir / 'checker')
+    for grader in config[CONF_GRADER]:
+        copy_if_necessary(Path(grader), core.result_dir / f'grader{Path(grader).suffix}')
+    if CONF_SAMPLE_SOLUTION in config:
+        copy_if_necessary(Path(config[CONF_SAMPLE_SOLUTION]), core.result_dir / 'samplesol')
+
+    if args.only_build:
+        return 0
 
     try:
         test_db_connection()
@@ -166,7 +193,7 @@ def main_run(args):
             path = Path(path)
         return file_cacher.put_file_from_path(str(path), description)
 
-    task = construct_task(config, put_file)
+    task = construct_task(config, all_rules, put_file)
 
     # Commit changes
     commit_task(task, args.contest)
@@ -182,6 +209,9 @@ def run_test_submissions(args, config, put_file):
     from cms.grading.languagemanager import filename_to_language
     from cms import ServiceCoord
     from cms.io import RemoteServiceClient
+
+    if CONF_TEST_SUBMISSIONS not in config:
+        return True
 
     _LOGGER.info("Uploading test submissions:")
 
@@ -293,6 +323,13 @@ def commit_task(task, contest_id):
         session.commit()
 
 
+def lookup_friendly_filename(all_rules, fname):
+    path = Path(fname).absolute()
+    if path in all_rules:
+        return all_rules[path].name
+    return fname
+
+
 def find_rules(config):
     all_rules: Dict[Path, Rule] = {}
 
@@ -307,8 +344,11 @@ def find_rules(config):
     def visit_item(value):
         if isinstance(value, AOITag):
             # Replace with output file path
+            name = f'{value.tag} {value.value}'.replace('\n', ' ')[:32]
+
             rule = value.rule_type(value.value, run_entropy=f'{len(all_rules)}',
-                                   base_directory=value.base_directory)
+                                   base_directory=value.base_directory,
+                                   name=name)
             return str(register_rule(rule))
         return value
 
@@ -319,8 +359,8 @@ def find_rules(config):
         sample_solution = config[CONF_SAMPLE_SOLUTION]
         sample_sol_file = Path(sample_solution).absolute()
         sample_sol_rule = all_rules[sample_sol_file]
-        for subtask in config[CONF_SUBTASKS]:
-            for testcase in subtask[CONF_TESTCASES]:
+        for i, subtask in enumerate(config[CONF_SUBTASKS], start=1):
+            for j, testcase in enumerate(subtask[CONF_TESTCASES], start=1):
                 if CONF_OUTPUT in testcase:
                     # Output already exists
                     continue
@@ -331,12 +371,13 @@ def find_rules(config):
                     # Add input as dependency
                     deps.append(all_rules[inp])
                 rule = ShellRule(str(Path(sample_sol_file)), stdin_file=inp,
-                                 dependencies=deps, base_directory=core.task_dir)
+                                 dependencies=deps, base_directory=core.task_dir,
+                                 name=f'samplesol {i:02d}_{j:02d}')
                 testcase[CONF_OUTPUT] = register_rule(rule)
     return all_rules, config
 
 
-def construct_task(config, put_file):
+def construct_task(config, all_rules, put_file):
     from cms.db import Statement, Attachment, Manager, Testcase, Dataset, Task
     from cms import FEEDBACK_LEVEL_FULL, FEEDBACK_LEVEL_RESTRICTED
 
@@ -354,7 +395,7 @@ def construct_task(config, put_file):
     for lang, pdf in config[CONF_STATEMENTS].items():
         digest = put_file(pdf, f"Statement for task {name} (lang: {lang})")
         statements[lang] = Statement(language=lang, digest=digest)
-        _LOGGER.info("  - Statement for language %s: %s", lang, pdf)
+        _LOGGER.info("  - Statement for language %s: '%s'", lang, lookup_friendly_filename(all_rules, pdf))
     if not statements:
         _LOGGER.info("  - No task statements!")
 
@@ -369,7 +410,7 @@ def construct_task(config, put_file):
     for fname, attachment in config[CONF_ATTACHMENTS].items():
         digest = put_file(attachment, f"Attachment {fname} for task {name}")
         attachments[attachment] = Attachment(filename=fname, digest=digest)
-        _LOGGER.info("  - Attachment %s: %s", fname, attachment)
+        _LOGGER.info("  - Attachment %s: '%s'", fname, lookup_friendly_filename(all_rules, attachment))
     if not attachments:
         _LOGGER.info("  - No task attachments!")
 
@@ -408,7 +449,7 @@ def construct_task(config, put_file):
         suffix = Path(grader).suffix
         digest = put_file(grader, f"Grader for task {name} and ext {suffix}")
         managers.append(Manager(filename=f'grader{suffix}', digest=digest))
-        _LOGGER.info("  - Grader: %s", grader)
+        _LOGGER.info("  - Grader: '%s'", grader)
         compilation_param = 'grader'
     if not config[CONF_GRADER]:
         _LOGGER.info("  - No graders, submission is compiled directly.")
@@ -420,7 +461,8 @@ def construct_task(config, put_file):
         digest = put_file(config[CONF_CHECKER], f'Manager for task {name}')
         managers.append(Manager(filename='checker', digest=digest))
         evaluation_param = "comparator"
-        _LOGGER.info("  - Testcase output is checked by checker %s", config[CONF_CHECKER])
+        _LOGGER.info("  - Testcase output is checked by checker '%s'",
+                     lookup_friendly_filename(all_rules, config[CONF_CHECKER]))
     else:
         # No checker, validate output with a simple diff (ignoring whitespace)
         evaluation_param = "diff"
@@ -453,8 +495,10 @@ def construct_task(config, put_file):
             output_digest = put_file(testcase[CONF_OUTPUT], f"Output {j} for task {name}")
             testcases.append(Testcase(codename=f'{i:02d}_{j:02d}', public=True,
                                       input=input_digest, output=output_digest))
-            _LOGGER.info("    - Testcase %s: Input %s, Output %s",
-                         j, testcase[CONF_INPUT], testcase[CONF_OUTPUT])
+            _LOGGER.info("    - Testcase %s: Input '%s', Output '%s'",
+                         j, lookup_friendly_filename(all_rules, testcase[CONF_INPUT]),
+                         lookup_friendly_filename(all_rules, testcase[CONF_OUTPUT]))
+        _LOGGER.info("")
 
     _LOGGER.info("")
 
