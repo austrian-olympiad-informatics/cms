@@ -22,6 +22,46 @@ def validate_file(value):
     return value
 
 
+def validate_file_glob(value):
+    try:
+        return validate_file(value)
+    except vol.Invalid as err:
+        first_err = err
+
+    try:
+        items = list(sorted(map(str, Path.cwd().glob(value))))
+    except Exception:
+        raise first_err
+    if not items:
+        raise first_err
+    return items
+
+def flatten_testcase_globs(value):
+    testcases = value
+    new_testcases = []
+    for testcase in testcases:
+        inp = testcase[CONF_INPUT]
+        out = testcase.get(CONF_OUTPUT)
+        if not isinstance(inp, list):
+            if isinstance(out, list):
+                raise vol.Invalid("Output cannot be a glob expression if input is not!")
+            new_testcases.append(testcase)
+
+        if out is not None:
+            if not isinstance(out, list):
+                raise vol.Invalid("Both input and output must be a glob expression!")
+            if len(inp) != len(out):
+                raise vol.Invalid(f"Number of items matched by input glob ({len(inp)}) must match number "
+                                  f"of items in output glob ({len(out)})!")
+            for a, b in zip(inp, out):
+                new_testcases.append({**testcase, 'input': a, 'output': b})
+        else:
+            for a in inp:
+                new_testcases.append({**testcase, 'input': a})
+    return new_testcases
+
+
+
 def one_of(*values):
     option_s = ', '.join(map(str, values))
 
@@ -76,10 +116,10 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Required(CONF_TASK_TYPE): one_of(*TASK_TYPES),
     vol.Required(CONF_SUBTASKS): [vol.Schema({
         vol.Required(CONF_POINTS): vol.Coerce(float),
-        vol.Required(CONF_TESTCASES): [vol.Schema({
-            vol.Optional(CONF_INPUT): validate_file,
-            vol.Optional(CONF_OUTPUT): validate_file,
-        }, extra=vol.ALLOW_EXTRA)],
+        vol.Required(CONF_TESTCASES): vol.All([vol.Schema({
+            vol.Optional(CONF_INPUT): validate_file_glob,
+            vol.Optional(CONF_OUTPUT): validate_file_glob,
+        }, extra=vol.ALLOW_EXTRA)], flatten_testcase_globs),
     }, extra=vol.ALLOW_EXTRA)],
     vol.Optional(CONF_CHECKER): validate_file,
     vol.Optional(CONF_TEST_SUBMISSIONS): {
