@@ -172,7 +172,7 @@ def main_run(args):
     if CONF_CHECKER in config:
         copy_if_necessary(Path(config[CONF_CHECKER]), core.result_dir / 'checker')
     for grader in config[CONF_GRADER]:
-        copy_if_necessary(Path(grader), core.result_dir / f'grader{Path(grader).suffix}')
+        copy_if_necessary(Path(grader), core.result_dir / Path(grader).name)
     if CONF_SAMPLE_SOLUTION in config:
         copy_if_necessary(Path(config[CONF_SAMPLE_SOLUTION]), core.result_dir / 'samplesol')
 
@@ -446,9 +446,10 @@ def construct_task(config, all_rules, put_file):
     compilation_param = 'alone'
     for grader in config[CONF_GRADER]:
         # Add grader (files that are compiled together with the user's file)
-        suffix = Path(grader).suffix
+        grader_path = Path(grader)
+        suffix = grader_path.suffix
         digest = put_file(grader, f"Grader for task {name} and ext {suffix}")
-        managers.append(Manager(filename=f'grader{suffix}', digest=digest))
+        managers.append(Manager(filename=grader_path.name, digest=digest))
         _LOGGER.info("  - Grader: '%s'", grader)
         compilation_param = 'grader'
     if not config[CONF_GRADER]:
