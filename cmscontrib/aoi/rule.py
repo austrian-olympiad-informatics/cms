@@ -2,13 +2,19 @@ import logging
 import os
 import shlex
 import shutil
+import string
 import subprocess
+import zipfile
 from abc import ABC
 from pathlib import Path
 from typing import List, Optional, Union
 
+import jinja2
+
+from cmscontrib.aoi.const import CONF_INPUT_TEMPLATE, CONF_LATEX_CONFIG, CONF_CPP_CONFIG, CONF_GCC_ARGS, \
+    CONF_ADDITIONAL_FILES, CONF_LATEXMK_ARGS
 from cmscontrib.aoi.core import core, CMSAOIError
-from cmscontrib.aoi.util import stable_hash, copytree, copy_if_necessary
+from cmscontrib.aoi.util import stable_hash, copytree, copy_if_necessary, expand_vars
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -16,15 +22,18 @@ _LOGGER = logging.getLogger(__name__)
 class Rule(ABC):
     def __init__(self, *, input_files: List[Path] = None, output_extension: str = "",
                  dependencies: List['Rule'] = None, entropy: Optional[str] = None,
-                 run_entropy: str = '', base_directory: Path = None):
+                 run_entropy: str = '', base_directory: Path = None, name: str = None):
         assert input_files is not None
         self.input_files = [base_directory / Path(x) for x in input_files]
         self.dependencies = dependencies or []
 
         input_filenames_s = [str(x) for x in self.input_files]
-        filename = self.__class__.__name__ + stable_hash('|'.join(input_filenames_s) + entropy) + output_extension
+        allowed = string.digits + string.ascii_letters + '-_.'
+        name_filtered = ''.join(c for c in name.replace(' ', '_') if c in allowed)
+        filename = name_filtered + '-' + stable_hash('|'.join(input_filenames_s) + entropy) + output_extension
         self.output_file: Path = core.internal_dir / filename
         self._has_run = False
+        self.name = name
 
     @property
     def all_input_files(self):
@@ -37,7 +46,11 @@ class Rule(ABC):
         if not self.output_file.exists():
             return False
         out_mtime = self.output_file.stat().st_mtime
-        for file in self.all_input_files:
+        all_files = self.all_input_files
+        if not all_files:
+            # No input files, can't know if up to date or not
+            return False
+        for file in all_files:
             if not file.exists():
                 # If the input file does not exist
                 return False
@@ -74,8 +87,6 @@ class Rule(ABC):
 
 
 class CommandRule(Rule, ABC):
-    STDOUT_MAGIC = '${STDOUT}'
-
     def __init__(self, *, command: List[str] = None,
                  stdin_file: Optional[Path] = None, stdin_raw: Optional[bytes] = None,
                  stdout_to_output: Optional[bool] = None,
@@ -111,10 +122,11 @@ class CommandRule(Rule, ABC):
 
     @command.setter
     def command(self, value):
-        self._command = []
-        for x in value:
-            x = x.replace(CommandRule.STDOUT_MAGIC, str(self.output_file))
-            self._command.append(x)
+        env = {**os.environ, **{
+            'STDOUT': str(self.output_file),
+            'TASKDIR': str(core.task_dir),
+        }}
+        self._command = [expand_vars(x, env) for x in value]
 
     def _open_stdin(self):
         if self.stdin_file is not None:
@@ -161,17 +173,14 @@ class LatexCompileRule(CommandRule):
         args: List[str] = shlex.split(args)
         assert len(args) >= 1
 
-        # Temporary directory to compile in
-        compile_dir_rule = DirectoryRule(**kwargs)
-        self._compile_dir = compile_dir_rule.output_file
-
         base_directory = kwargs['base_directory']
-        input_files = [base_directory / Path(x) for x in args] + core.latex_additional_files
+        latex_config = core.config[CONF_LATEX_CONFIG]
+        additional_files = latex_config[CONF_ADDITIONAL_FILES]
+        input_files = [base_directory / Path(x) for x in args] + list(map(Path, additional_files))
         self._main_file = input_files[0]
 
-        command = ['latexmk', '-latexoption=-interaction=nonstopmode', '-pdf', '-cd']
-        command += shlex.split(core.latexmk_args)
-        compile_tex_file = self._compile_dir / self._main_file.absolute().relative_to(core.task_dir)
+        command = shlex.split(latex_config[CONF_LATEXMK_ARGS])
+        compile_tex_file = core.internal_build_dir / self._main_file.absolute().relative_to(core.task_dir)
         command.append(str(compile_tex_file))
 
         self._pdf_file: Path = compile_tex_file.with_suffix('.pdf')
@@ -180,32 +189,45 @@ class LatexCompileRule(CommandRule):
             input_files=input_files,
             command=command,
             output_extension='.pdf',
-            dependencies=[compile_dir_rule],
+            dependencies=[],
             **kwargs,
         )
 
+    @property
+    def _main_rel(self):
+        """The main file relative to the task dir."""
+        return self._main_file.parent.absolute().relative_to(core.task_dir)
+
     def pre_run(self):
-        copytree(core.task_dir, self._compile_dir, ignore={core.internal_dir})
         for additional_file in core.latex_additional_files:
-            dst = self._main_file.parent / additional_file.name
+            dst = (core.internal_build_dir / self._main_rel) / additional_file.name
             copy_if_necessary(additional_file, dst)
+        self.build_template()
+
+    def build_template(self):
+        input_template = core.config[CONF_LATEX_CONFIG].get(CONF_INPUT_TEMPLATE)
+        if input_template is None:
+            return
+        # http://eosrei.net/articles/2015/11/latex-templates-python-and-jinja2-generate-pdfs
+        latex_jinja_env = jinja2.Environment(
+            block_start_string=r'\BLOCK{',
+            block_end_string='}',
+            variable_start_string=r'\VAR{',
+            variable_end_string='}',
+            comment_start_string=r'\#{',
+            comment_end_string='}',
+            line_statement_prefix='%%',
+            line_comment_prefix='%#',
+            trim_blocks=True,
+            autoescape=False,
+        )
+        template = latex_jinja_env.from_string(input_template)
+        text = template.render(config=core.config)
+        dst = (core.internal_build_dir / self._main_rel) / 'aoi-input.tex'
+        dst.write_text(text)
 
     def post_run(self):
         shutil.copy(self._pdf_file, self.output_file)
-
-
-class DirectoryRule(Rule):
-    def __init__(self, **kwargs):
-        entropy = kwargs.get('entropy', '') + kwargs['run_entropy']
-        super().__init__(
-            input_files=[],
-            output_extension=".dir",
-            entropy=entropy,
-            **kwargs,
-        )
-
-    def _execute(self):
-        self.output_file.mkdir(exist_ok=True)
 
 
 class CppCompileRule(CommandRule):
@@ -213,16 +235,9 @@ class CppCompileRule(CommandRule):
         args = shlex.split(args)
         # FIXME: Find better way to distinguish between GCC args and input files
         input_files = [Path(x) for x in args]
-        input_files = [x for x in input_files if x.suffix in ('.h', '.cpp', '.c')]
-        # Has to be static for binaries that are uploaded to CMS (maybe incompatible stdlib ABI)
-        command = ['g++', '-O2', '-std=gnu++11', '-pipe', '-o', CommandRule.STDOUT_MAGIC, '-static', '-s',
-                   '-Wno-unused-result']
-        for arg in args:
-            p = Path(arg)
-            if p.is_file():
-                command.append(str(p))
-            else:
-                command.append(arg)
+        input_files = [x for x in input_files if x.suffix in ('.h', '.cpp', '.c', '.cc')]
+        command = shlex.split(core.config[CONF_CPP_CONFIG][CONF_GCC_ARGS])
+        command += args
         super().__init__(
             input_files=input_files,
             command=command,
@@ -235,7 +250,8 @@ class CppRunRule(CommandRule):
         args = shlex.split(args)
         assert len(args) >= 1
         cpp_file = args[0]
-        compile_rule = CppCompileRule(cpp_file)
+        name = kwargs.pop('name')
+        compile_rule = CppCompileRule(cpp_file, name='CppRunCompile', **kwargs)
         command = [str(compile_rule.output_file), *args[1:]]
         super().__init__(
             input_files=[],
@@ -243,6 +259,7 @@ class CppRunRule(CommandRule):
             stdout_to_output=True,
             dependencies=[compile_rule],
             command=command,
+            name=name,
             **kwargs
         )
 
@@ -280,7 +297,7 @@ class PyRunRule(CommandRule):
         content = PYTHON_PRE_PROG.format(run_entropy).encode()
         content += py_file.read_bytes()
 
-        raw_rule = RawRule(content)
+        raw_rule = RawRule(content, **kwargs)
         command = ['python3', str(raw_rule.output_file), *args[1:]]
 
         super().__init__(
@@ -299,20 +316,27 @@ class PyinlineRule(CommandRule):
         run_entropy = kwargs['run_entropy']
         stdin = PYTHON_PRE_PROG.format(run_entropy).encode()
         stdin += prog.encode()
+        entropy = kwargs.pop('entropy', '') + stable_hash(stdin)
         super().__init__(
             input_files=[],
             output_extension='.exec',
             stdout_to_output=True,
             command=command,
             stdin_raw=stdin,
+            entropy=entropy,
             **kwargs,
         )
 
+    def is_up_to_date(self):
+        return self.output_file.exists()
+
 
 class RawRule(Rule):
-    def __init__(self, text: Union[str, bytes], **kwargs):
-        entropy = stable_hash(text)
-        self.text = text
+    def __init__(self, content: Union[str, bytes], **kwargs):
+        entropy = stable_hash(content)
+        if isinstance(content, str):
+            content = content.encode()
+        self.content = content
         super().__init__(
             input_files=[],
             output_extension=".raw",
@@ -320,9 +344,41 @@ class RawRule(Rule):
             **kwargs,
         )
 
-    def _execute(self):
-        if isinstance(self.text, str):
-            self.output_file.write_text(self.text)
-        else:
-            self.output_file.write_bytes(self.text)
+    def is_up_to_date(self):
+        return self.output_file.exists() and self.output_file.read_bytes() == self.content
 
+    def _execute(self):
+        self.output_file.write_bytes(self.content)
+
+
+class MakeRule(CommandRule):
+    def __init__(self, args: str, **kwargs):
+        parts = shlex.split(args)
+        if len(parts) != 1:
+            raise ValueError("Only one make target is supported at a time")
+        self._make_target = Path(parts[0])
+        super().__init__(
+            input_files=[],
+            output_extension=self._make_target.suffix,
+            **kwargs,
+        )
+
+    def post_run(self):
+        if not self._make_target.is_file():
+            raise CMSAOIError(f"Make rule did not produce target {self._make_target}")
+        copy_if_necessary(self._make_target, self.output_file)
+
+
+class ZipRule(Rule):
+    def __init__(self, args: str, **kwargs):
+        self._files = [Path(x) for x in shlex.split(args)]
+        super().__init__(
+            input_files=self._files,
+            output_extension='.zip',
+            **kwargs,
+        )
+
+    def _execute(self):
+        with zipfile.ZipFile(self.output_file, 'w') as zipf:
+            for x in self._files:
+                zipf.writestr(str(x), x.read_bytes())

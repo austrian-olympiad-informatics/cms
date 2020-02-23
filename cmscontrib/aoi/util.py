@@ -1,7 +1,8 @@
 import hashlib
+import re
 import shutil
 from pathlib import Path
-from typing import Union, Optional, Set
+from typing import Union, Optional, Set, Dict
 
 
 def stable_hash(s: Union[str, bytes]):
@@ -17,16 +18,7 @@ def _is_copy_necessary(src: Path, dst: Path):
         raise ValueError(f"File {src} does not exist and cannot be copied.")
     if not dst.is_file():
         return True
-    with src.open('rb') as src_fh, dst.open('rb') as dst_fh:
-        while True:
-            src_content = src_fh.read(4096)
-            dst_content = dst_fh.read(4096)
-            if not src_content and not dst_content:
-                # End of File
-                return False
-            if src_content != dst_content:
-                # Different content
-                return True
+    return src.stat().st_mtime >= dst.stat().st_mtime
 
 
 def copy_if_necessary(src: Path, dst: Path):
@@ -49,3 +41,29 @@ def copytree(src: Path, dst: Path, ignore: Optional[Set[Path]] = None):
             copy_if_necessary(src_path, dst_path)
     shutil.copystat(src, dst)
     return dst
+
+
+expand_vars_prog = re.compile(r'\$(\w+|\{[^}]*\})', re.ASCII)
+
+
+def expand_vars(s: str, env: Dict[str, str]) -> str:
+    i = 0
+    while True:
+        m = expand_vars_prog.search(s, i)
+        if not m:
+            break
+        i, j = m.span(0)
+        name = m.group(1)
+        if name.startswith('{') and name.endswith('}'):
+            name = name[1:-1]
+
+        try:
+            value = env[name]
+        except KeyError:
+            i = j
+        else:
+            tail = s[j:]
+            s = s[:i] + value
+            i = len(s)
+            s += tail
+    return s

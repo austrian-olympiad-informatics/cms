@@ -3,18 +3,21 @@ from pathlib import Path
 import yaml
 
 from cmscontrib.aoi.rule import LatexCompileRule, CppCompileRule, CppRunRule, ShellRule, PyRunRule, PyinlineRule, \
-    RawRule
+    RawRule, MakeRule, ZipRule
 
 
 class AOITag:
-    def __init__(self, base_directory, rule_type, value):
+    def __init__(self, base_directory, tag, rule_type, value):
+        self.tag = tag
         self.rule_type = rule_type
         self.value = value
         self.base_directory = base_directory
 
 
 def register_tag(tag, rule_type):
-    yaml.SafeLoader.add_constructor(tag, lambda loader, node: AOITag(Path(loader.name).parent, rule_type, node.value))
+    def on_tag(loader, node):
+        return AOITag(Path(loader.name).parent, tag, rule_type, node.value)
+    yaml.SafeLoader.add_constructor(tag, on_tag)
 
 
 for tag, rule_type in {
@@ -25,6 +28,8 @@ for tag, rule_type in {
     '!pyrun': PyRunRule,
     '!pyinline': PyinlineRule,
     '!raw': RawRule,
+    '!make': MakeRule,
+    '!zip': ZipRule,
 }.items():
     register_tag(tag, rule_type)
 
