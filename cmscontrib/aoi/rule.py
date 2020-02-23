@@ -89,7 +89,7 @@ class Rule(ABC):
 class CommandRule(Rule, ABC):
     def __init__(self, *, command: List[str] = None,
                  stdin_file: Optional[Path] = None, stdin_raw: Optional[bytes] = None,
-                 stdout_to_output: Optional[bool] = None,
+                 stdout_to_output: Optional[bool] = None, env = None,
                  **kwargs):
         assert command is not None
         # Entropy is calculated before stdout magic
@@ -109,6 +109,7 @@ class CommandRule(Rule, ABC):
         self.stdin_file = stdin_file
         self.stdin_raw = stdin_raw
         self.stdout_to_output = stdout_to_output or False
+        self._env = env
 
     def pre_run(self):
         pass
@@ -150,8 +151,14 @@ class CommandRule(Rule, ABC):
             cmd_s += f' >{self.output_file}'
         _LOGGER.info("Executing %s", cmd_s)
         stdin = self._open_stdin()
+        kwargs = {
+            'stdin': stdin,
+            'stdout': stdout,
+        }
+        if self._env is not None:
+            kwargs['env'] = self._env
         try:
-            subprocess.check_call(self.command, stdin=stdin, stdout=stdout)
+            subprocess.check_call(self.command, **kwargs)
         except subprocess.CalledProcessError as err:
             _LOGGER.error("Command %s failed, please view stderr logs above.", cmd_s)
             _LOGGER.error(str(err))
@@ -190,6 +197,7 @@ class LatexCompileRule(CommandRule):
             command=command,
             output_extension='.pdf',
             dependencies=[],
+            env={**os.environ, 'SOURCE_DATE_EPOCH': '0'},
             **kwargs,
         )
 
@@ -375,10 +383,11 @@ class ZipRule(Rule):
         super().__init__(
             input_files=self._files,
             output_extension='.zip',
+            entropy=kwargs.pop('entropy', ''),
             **kwargs,
         )
 
     def _execute(self):
         with zipfile.ZipFile(self.output_file, 'w') as zipf:
             for x in self._files:
-                zipf.writestr(str(x), x.read_bytes())
+                zipf.writestr(x.name, x.read_bytes())
