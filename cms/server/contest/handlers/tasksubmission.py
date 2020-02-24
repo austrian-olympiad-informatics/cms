@@ -352,7 +352,7 @@ class SubmissionDetailsHandler(ContestHandler):
             candidates = []
             for minp, maxp, f in parsed:
                 if minp <= score <= maxp:
-                    candidates.append([f])
+                    candidates.append(f)
             candidates.sort()
 
             # Are there any candidate files?
