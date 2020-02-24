@@ -345,7 +345,8 @@ class SubmissionDetailsHandler(ContestHandler):
                     m = re.match(r'^(\d+)-(\d+)-.*\.(jpeg|jpg|png|gif)$', fname)
                     if m is None:
                         continue
-                    parsed += [(int(m.group(1)), int(m.group(2)), fname)] * 20
+                    parsed += [(int(m.group(1)), int(m.group(2)),
+                                'task/{}/{}'.format(task_name, fname))] * 20
 
 
             # Filter the list of parsed files for matching score
