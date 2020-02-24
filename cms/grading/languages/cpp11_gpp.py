@@ -65,7 +65,7 @@ class Cpp11Gpp(CompiledLanguage):
         command = ["/usr/bin/g++"]
         if for_evaluation:
             command += ["-DEVAL"]
-        command += ["-std=gnu++11", "-O2", "-pipe", "-static",
+        command += ["-std=gnu++11", "-O2", "-pipe", "-static", "-Wno-unused-result",
                     "-s", "-o", executable_filename]
         command += source_filenames
         return [command]
