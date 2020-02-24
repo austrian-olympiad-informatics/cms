@@ -3,6 +3,7 @@ import logging
 import sys
 import time
 from typing import List
+import argparse
 
 import gevent
 import requests
@@ -25,6 +26,7 @@ def send_discord_message(webhook_url, content=None, embeds=None):
     if embeds is not None:
         js['embeds'] = embeds
     wait = 1
+    print(f"Sending {content} {embeds}")
     while True:
         try:
             req = requests.post(webhook_url, json=js)
@@ -156,8 +158,8 @@ def print_table(scores, highlightuser, tasknames, taskprecisions, top_n=10):
     return '\n'.join(lines)
 
 
-class DiscordBotService(Service):
-    def __init__(self, shard, contest_id):
+class DiscordBotService:
+    def __init__(self, contest_id):
         super().__init__()
         self.contest_id = contest_id
         self.last_ann_id = -1
@@ -250,7 +252,10 @@ class DiscordBotService(Service):
                     .join(Submission.results).filter(SubmissionResult.score > 0) \
                     .join(Submission.task).filter(Task.name == taskname) \
                     .filter(Participation.contest_id == self.contest_id)
-                submission = session.query(Submission).filter(Submission.id == subq).one()
+                submission = session.query(Submission).filter(Submission.id == subq).first()
+
+                if submission is None:
+                    continue
 
                 submission_url = f"{BASE_URL}/submission/{submission.id}"
                 user_url = f"{BASE_URL}/contest/{self.contest_id}/user/{user.id}/edit"
@@ -290,9 +295,12 @@ class DiscordBotService(Service):
 def main():
     test_db_connection()
 
-    return default_argument_parser("Discord Bot Service for CMS",
-                                   DiscordBotService,
-                                   ask_contest=ask_for_contest).run()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-c", '--contest', type=int, required=True)
+    args = parser.parse_args()
+
+    serv = DiscordBotService(args.contest)
+    serv.run()
 
 
 if __name__ == "__main__":
