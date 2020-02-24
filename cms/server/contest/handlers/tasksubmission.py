@@ -320,6 +320,8 @@ class SubmissionDetailsHandler(ContestHandler):
             details = score_type.get_html_details(
                 raw_details, feedback_level, translation=self.translation)
 
+
+
         meme_url = None
         if config.memes_path is not None:
             score = sr.score
@@ -334,11 +336,23 @@ class SubmissionDetailsHandler(ContestHandler):
                     continue
                 parsed.append((int(m.group(1)), int(m.group(2)), fname))
 
+            task_path = os.path.join(config.memes_path, 'task', task_name)
+            if os.path.exists(task_path):
+                for fname in os.listdir(task_path):
+                    path = os.path.join(task_path, fname)
+                    if not os.path.isfile(path):
+                        continue
+                    m = re.match(r'^(\d+)-(\d+)-.*\.(jpeg|jpg|png|gif)$', fname)
+                    if m is None:
+                        continue
+                    parsed += [(int(m.group(1)), int(m.group(2)), fname)] * 20
+
+
             # Filter the list of parsed files for matching score
             candidates = []
             for minp, maxp, f in parsed:
                 if minp <= score <= maxp:
-                    candidates.append(f)
+                    candidates.append([f])
             candidates.sort()
 
             # Are there any candidate files?
