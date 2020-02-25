@@ -90,6 +90,7 @@ class CommandRule(Rule, ABC):
     def __init__(self, *, command: List[str] = None,
                  stdin_file: Optional[Path] = None, stdin_raw: Optional[bytes] = None,
                  stdout_to_output: Optional[bool] = None, env = None,
+                 cwd = None,
                  **kwargs):
         assert command is not None
         # Entropy is calculated before stdout magic
@@ -110,6 +111,7 @@ class CommandRule(Rule, ABC):
         self.stdin_raw = stdin_raw
         self.stdout_to_output = stdout_to_output or False
         self._env = env
+        self._cwd = cwd
 
     def pre_run(self):
         pass
@@ -157,6 +159,8 @@ class CommandRule(Rule, ABC):
         }
         if self._env is not None:
             kwargs['env'] = self._env
+        if self._cwd is not None:
+            kwargs['cwd'] = str(self._cwd)
         try:
             subprocess.check_call(self.command, **kwargs)
         except subprocess.CalledProcessError as err:
@@ -187,7 +191,7 @@ class LatexCompileRule(CommandRule):
         self._main_file = input_files[0]
 
         command = shlex.split(latex_config[CONF_LATEXMK_ARGS])
-        compile_tex_file = core.internal_build_dir / self._main_file.absolute().relative_to(core.task_dir)
+        compile_tex_file = (core.internal_build_dir / self._main_file.absolute().relative_to(core.task_dir)).absolute()
         command.append(str(compile_tex_file))
 
         self._pdf_file: Path = compile_tex_file.with_suffix('.pdf')
@@ -198,6 +202,7 @@ class LatexCompileRule(CommandRule):
             output_extension='.pdf',
             dependencies=[],
             env={**os.environ, 'SOURCE_DATE_EPOCH': '0'},
+            cwd=compile_tex_file.parent,
             **kwargs,
         )
 
