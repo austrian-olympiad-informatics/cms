@@ -6,6 +6,7 @@ class CoreInfo:
         # Will be set later in main()
         self.task_dir: Path = Path.cwd()
         self.config = {}
+        self.contest_name = None
 
     @property
     def internal_dir(self) -> Path:

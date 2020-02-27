@@ -192,6 +192,7 @@ class LatexCompileRule(CommandRule):
 
         command = shlex.split(latex_config[CONF_LATEXMK_ARGS])
         compile_tex_file = (core.internal_build_dir / self._main_file.absolute().relative_to(core.task_dir)).absolute()
+        self._compile_tex_file = compile_tex_file
         command.append(str(compile_tex_file))
 
         self._pdf_file: Path = compile_tex_file.with_suffix('.pdf')
@@ -235,9 +236,13 @@ class LatexCompileRule(CommandRule):
             autoescape=False,
         )
         template = latex_jinja_env.from_string(input_template)
-        text = template.render(config=core.config)
-        dst = (core.internal_build_dir / self._main_rel) / 'aoi-input.tex'
-        dst.write_text(text)
+        text = template.render(config=core.config, contest_name=core.contest_name)
+
+        main_file_content = self._main_file.read_text()
+        # Insert jinja2 header at top
+        main_file_content = text + '\n' + main_file_content
+        self._compile_tex_file.write_text(main_file_content)
+
 
     def post_run(self):
         shutil.copy(self._pdf_file, self.output_file)
