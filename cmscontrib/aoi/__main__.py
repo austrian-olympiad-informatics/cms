@@ -146,6 +146,15 @@ def main_run(args):
     core.latex_additional_files = [Path(x) for x in latex_config[CONF_ADDITIONAL_FILES]]
     core.gcc_args = config[CONF_CPP_CONFIG][CONF_GCC_ARGS]
     core.config = config
+    try:
+        from cms.db import SessionGen, Contest
+        if args.contest is not None:
+            with SessionGen() as session:
+                contest = session.query(Contest).filter(Contest.id == args.contest).one()
+                core.contest_name = contest.name
+    except Exception as e:
+        _LOGGER.warning("Could not determine contest name from ID - latex won't automatically set in latex header (%s)",
+                        e, exc_info=0)
 
     copytree(core.task_dir, core.internal_build_dir, ignore={core.internal_dir})
 
@@ -319,6 +328,8 @@ def commit_task(task, contest_id):
             if contest.id != task.contest_id:
                 _LOGGER.info("Adding task to contest %s", contest.id)
                 task.contest_id = contest.id
+                if task.num is None:
+                    task.num = len(contest.tasks)
         # Commit changes
         session.commit()
 
