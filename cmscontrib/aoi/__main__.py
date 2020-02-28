@@ -151,7 +151,7 @@ def main_run(args):
         if args.contest is not None:
             with SessionGen() as session:
                 contest = session.query(Contest).filter(Contest.id == args.contest).one()
-                core.contest_name = contest.name
+                core.contest_name = contest.description
     except Exception as e:
         _LOGGER.warning("Could not determine contest name from ID - latex won't automatically set in latex header (%s)",
                         e, exc_info=0)
