@@ -16,6 +16,11 @@ TASK_TYPES = {
     'BATCH': 'Batch',
     'OUTPUT_ONLY': 'OutputOnly',
 }
+TOKEN_MODES = {
+    'DISABLED': "disabled",
+    'FINITE': "finite",
+    'INFINITE': "infinite",
+}
 
 
 CONF_NAME = 'name'
@@ -50,3 +55,7 @@ CONF_ADDITIONAL_FILES = 'additional_files'
 CONF_CPP_CONFIG = 'cpp_config'
 CONF_INPUT_TEMPLATE = 'input_template'
 CONF_PUBLIC = 'public'
+CONF_TOKENS = 'tokens'
+CONF_MAX_NUMBER = 'max_number'
+CONF_INITIAL = 'initial'
+CONF_GEN_NUMBER = 'gen_number'
