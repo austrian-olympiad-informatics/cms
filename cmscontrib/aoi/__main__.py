@@ -19,7 +19,8 @@ from cmscontrib.aoi.const import CONF_EXTENDS, CONF_GCC_ARGS, CONF_LATEX_CONFIG,
     CONF_ADDITIONAL_FILES, CONF_NAME, CONF_TEST_SUBMISSIONS, CONF_SAMPLE_SOLUTION, CONF_SUBTASKS, CONF_TESTCASES, \
     CONF_OUTPUT, CONF_INPUT, CONF_SCORE_OPTIONS, CONF_STATEMENTS, CONF_ATTACHMENTS, CONF_FEEDBACK_LEVEL, CONF_LONG_NAME, \
     CONF_DECIMAL_PLACES, SCORE_MODES, CONF_MODE, CONF_GRADER, CONF_CHECKER, CONF_TYPE, CONF_POINTS, CONF_TASK_TYPE, \
-    CONF_TIME_LIMIT, CONF_MEMORY_LIMIT, SCORE_TYPES, TASK_TYPES, CONF_CPP_CONFIG, CONF_PUBLIC
+    CONF_TIME_LIMIT, CONF_MEMORY_LIMIT, SCORE_TYPES, TASK_TYPES, CONF_CPP_CONFIG, CONF_PUBLIC, \
+    CONF_TOKENS, CONF_INITIAL, CONF_GEN_NUMBER, TOKEN_MODES
 from cmscontrib.aoi.core import core, CMSAOIError
 from cmscontrib.aoi.rule import Rule, ShellRule
 from cmscontrib.aoi.util import copytree, copy_if_necessary
@@ -442,10 +443,15 @@ def construct_task(config, all_rules, put_file):
     score_mode = SCORE_MODES[score_opt[CONF_MODE]]
     _LOGGER.info("  - Score mode: %s", score_mode)
 
+    tokens = config[CONF_TOKENS]
+
     task = Task(
         name=name, title=long_name, submission_format=submission_format,
         feedback_level=feedback_level, score_precision=score_precision, score_mode=score_mode,
-        statements=statements, attachments=attachments, **args
+        statements=statements, attachments=attachments,
+        token_mode=TOKEN_MODES[tokens[CONF_MODE]], token_gen_initial=tokens[CONF_INITIAL],
+        token_gen_number=tokens[CONF_GEN_NUMBER],
+        **args
     )
 
     _LOGGER.info("")

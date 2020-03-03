@@ -7,7 +7,7 @@ from cmscontrib.aoi.const import CONF_NAME, CONF_LONG_NAME, CONF_AUTHOR, CONF_AT
     CONF_TIME_LIMIT, CONF_MEMORY_LIMIT, CONF_SAMPLE_SOLUTION, CONF_GRADER, CONF_TASK_TYPE, CONF_SUBTASKS, CONF_POINTS, \
     CONF_TESTCASES, CONF_INPUT, CONF_OUTPUT, CONF_CHECKER, CONF_TEST_SUBMISSIONS, CONF_GCC_ARGS, CONF_LATEX_CONFIG, \
     CONF_LATEXMK_ARGS, CONF_ADDITIONAL_FILES, FEEDBACK_LEVELS, SCORE_MODES, SCORE_TYPES, TASK_TYPES, CONF_CPP_CONFIG, \
-    CONF_INPUT_TEMPLATE, CONF_PUBLIC
+    CONF_INPUT_TEMPLATE, CONF_PUBLIC, CONF_TOKENS, CONF_MAX_NUMBER, CONF_INITIAL, CONF_GEN_NUMBER, TOKEN_MODES
 from cmscontrib.aoi.yaml_loader import AOITag
 
 
@@ -135,5 +135,10 @@ CONFIG_SCHEMA = vol.Schema({
         vol.Optional(CONF_LATEXMK_ARGS, default='latexmk -latexoption=-interaction=nonstopmode -pdf -cd'): string,
         vol.Optional(CONF_ADDITIONAL_FILES, default=[]): [validate_file],
         vol.Optional(CONF_INPUT_TEMPLATE): string,
+    },
+    vol.Optional(CONF_TOKENS, default={}): {
+        vol.Optional(CONF_MODE, default='DISABLED'): one_of(*TOKEN_MODES),
+        vol.Optional(CONF_INITIAL, default=2): vol.Coerce(int),
+        vol.Optional(CONF_GEN_NUMBER, default=2): vol.Coerce(int),
     },
 })
