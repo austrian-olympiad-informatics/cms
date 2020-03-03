@@ -19,7 +19,7 @@ from cmscontrib.aoi.const import CONF_EXTENDS, CONF_GCC_ARGS, CONF_LATEX_CONFIG,
     CONF_ADDITIONAL_FILES, CONF_NAME, CONF_TEST_SUBMISSIONS, CONF_SAMPLE_SOLUTION, CONF_SUBTASKS, CONF_TESTCASES, \
     CONF_OUTPUT, CONF_INPUT, CONF_SCORE_OPTIONS, CONF_STATEMENTS, CONF_ATTACHMENTS, CONF_FEEDBACK_LEVEL, CONF_LONG_NAME, \
     CONF_DECIMAL_PLACES, SCORE_MODES, CONF_MODE, CONF_GRADER, CONF_CHECKER, CONF_TYPE, CONF_POINTS, CONF_TASK_TYPE, \
-    CONF_TIME_LIMIT, CONF_MEMORY_LIMIT, SCORE_TYPES, TASK_TYPES, CONF_CPP_CONFIG
+    CONF_TIME_LIMIT, CONF_MEMORY_LIMIT, SCORE_TYPES, TASK_TYPES, CONF_CPP_CONFIG, CONF_PUBLIC
 from cmscontrib.aoi.core import core, CMSAOIError
 from cmscontrib.aoi.rule import Rule, ShellRule
 from cmscontrib.aoi.util import copytree, copy_if_necessary
@@ -505,7 +505,7 @@ def construct_task(config, all_rules, put_file):
         for j, testcase in enumerate(subtask[CONF_TESTCASES], start=1):
             input_digest = put_file(testcase[CONF_INPUT], f"Input {j} for task {name}")
             output_digest = put_file(testcase[CONF_OUTPUT], f"Output {j} for task {name}")
-            testcases.append(Testcase(codename=f'{i:02d}_{j:02d}', public=True,
+            testcases.append(Testcase(codename=f'{i:02d}_{j:02d}', public=testcase[CONF_PUBLIC],
                                       input=input_digest, output=output_digest))
             _LOGGER.info("    - Testcase %s: Input '%s', Output '%s'",
                          j, lookup_friendly_filename(all_rules, testcase[CONF_INPUT]),

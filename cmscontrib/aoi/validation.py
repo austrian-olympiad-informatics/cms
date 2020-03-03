@@ -7,7 +7,7 @@ from cmscontrib.aoi.const import CONF_NAME, CONF_LONG_NAME, CONF_AUTHOR, CONF_AT
     CONF_TIME_LIMIT, CONF_MEMORY_LIMIT, CONF_SAMPLE_SOLUTION, CONF_GRADER, CONF_TASK_TYPE, CONF_SUBTASKS, CONF_POINTS, \
     CONF_TESTCASES, CONF_INPUT, CONF_OUTPUT, CONF_CHECKER, CONF_TEST_SUBMISSIONS, CONF_GCC_ARGS, CONF_LATEX_CONFIG, \
     CONF_LATEXMK_ARGS, CONF_ADDITIONAL_FILES, FEEDBACK_LEVELS, SCORE_MODES, SCORE_TYPES, TASK_TYPES, CONF_CPP_CONFIG, \
-    CONF_INPUT_TEMPLATE
+    CONF_INPUT_TEMPLATE, CONF_PUBLIC
 from cmscontrib.aoi.yaml_loader import AOITag
 
 
@@ -120,6 +120,7 @@ CONFIG_SCHEMA = vol.Schema({
         vol.Required(CONF_TESTCASES): vol.All([vol.Schema({
             vol.Optional(CONF_INPUT): validate_file_glob,
             vol.Optional(CONF_OUTPUT): validate_file_glob,
+            vol.Optional(CONF_PUBLIC, default=False): vol.Coerce(bool),
         }, extra=vol.ALLOW_EXTRA)], flatten_testcase_globs),
     }, extra=vol.ALLOW_EXTRA)],
     vol.Optional(CONF_CHECKER): validate_file,
