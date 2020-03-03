@@ -47,7 +47,7 @@ except:
 import tornado.web
 from sqlalchemy.orm import joinedload
 
-from cms import config, FEEDBACK_LEVEL_FULL
+from cms import config, FEEDBACK_LEVEL_FULL, TOKEN_MODE_DISABLED
 from cms.db import Submission, SubmissionResult
 from cms.grading.languagemanager import get_language
 from cms.grading.scoring import task_score
@@ -333,7 +333,7 @@ class SubmissionDetailsHandler(ContestHandler):
 
 
         meme_url = None
-        if config.memes_path is not None:
+        if config.memes_path is not None and task.token_mode == TOKEN_MODE_DISABLED:
             score = sr.score
 
             parsed = []
