@@ -92,6 +92,19 @@ def string(value: str):
     return value
 
 
+def copy_public_to_testcases(config):
+    testcases = config[CONF_TESTCASES]
+    new_testcases = []
+    for tc in testcases:
+        tc = tc.copy()
+        if CONF_PUBLIC not in tc:
+            tc[CONF_PUBLIC] = config[CONF_PUBLIC]
+        new_testcases.append(tc)
+    config = config.copy()
+    config[CONF_TESTCASES] = new_testcases
+    return config
+
+
 CONFIG_SCHEMA = vol.Schema({
     vol.Required(CONF_NAME): string,
     vol.Required(CONF_LONG_NAME): string,
@@ -115,14 +128,15 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_SAMPLE_SOLUTION): validate_file,
     vol.Optional(CONF_GRADER, default=[]): [validate_file],
     vol.Required(CONF_TASK_TYPE): one_of(*TASK_TYPES),
-    vol.Required(CONF_SUBTASKS): [vol.Schema({
+    vol.Required(CONF_SUBTASKS): [vol.All(vol.Schema({
         vol.Required(CONF_POINTS): vol.Coerce(float),
+        vol.Optional(CONF_PUBLIC, default=True): vol.Coerce(bool),
         vol.Required(CONF_TESTCASES): vol.All([vol.Schema({
             vol.Optional(CONF_INPUT): validate_file_glob,
             vol.Optional(CONF_OUTPUT): validate_file_glob,
-            vol.Optional(CONF_PUBLIC, default=False): vol.Coerce(bool),
+            vol.Optional(CONF_PUBLIC): vol.Coerce(bool),
         }, extra=vol.ALLOW_EXTRA)], flatten_testcase_globs),
-    }, extra=vol.ALLOW_EXTRA)],
+    }, extra=vol.ALLOW_EXTRA), copy_public_to_testcases)],
     vol.Optional(CONF_CHECKER): validate_file,
     vol.Optional(CONF_TEST_SUBMISSIONS): {
         validate_file: vol.Coerce(float),
