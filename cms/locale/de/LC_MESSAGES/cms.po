@@ -891,7 +891,7 @@ msgstr "Derzeit hast du einen weiteren Token für diesen Task zur Verfügung."
 
 #, python-format
 msgid "Right now, you have %(tokens)s tokens available on this task."
-msgstr "Derzeit hast du %(token)s weitere Token für diesen Task zur Verfügung."
+msgstr "Derzeit hast du %(tokens)s weitere Token für diesen Task zur Verfügung."
 
 #, python-format
 msgid "But you have to wait until %(expiration_time)s to use them."
