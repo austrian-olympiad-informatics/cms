@@ -41,6 +41,8 @@ class Python3PyPy(CompiledLanguage):
 
     """
 
+    MAIN_FILENAME = "__main__.pyc"
+
     @property
     def name(self):
         """See Language.name."""
