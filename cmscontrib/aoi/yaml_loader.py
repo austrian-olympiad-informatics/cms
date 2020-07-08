@@ -3,7 +3,7 @@ from pathlib import Path
 import yaml
 
 from cmscontrib.aoi.rule import LatexCompileRule, CppCompileRule, CppRunRule, ShellRule, PyRunRule, PyinlineRule, \
-    RawRule, MakeRule, ZipRule
+    RawRule, MakeRule, ZipRule, GunzipRule, UnzipRule
 
 
 class AOITag:
@@ -30,6 +30,8 @@ for tag, rule_type in {
     '!raw': RawRule,
     '!make': MakeRule,
     '!zip': ZipRule,
+    '!gunzip': GunzipRule,
+    '!unzip': UnzipRule,
 }.items():
     register_tag(tag, rule_type)
 

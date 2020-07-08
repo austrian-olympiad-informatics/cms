@@ -4,6 +4,7 @@ import shlex
 import shutil
 import string
 import subprocess
+import gzip
 import zipfile
 from abc import ABC
 from pathlib import Path
@@ -216,32 +217,6 @@ class LatexCompileRule(CommandRule):
         for additional_file in core.latex_additional_files:
             dst = (core.internal_build_dir / self._main_rel) / additional_file.name
             copy_if_necessary(additional_file, dst)
-        self.build_template()
-
-    def build_template(self):
-        input_template = core.config[CONF_LATEX_CONFIG].get(CONF_INPUT_TEMPLATE)
-        if input_template is None:
-            return
-        # http://eosrei.net/articles/2015/11/latex-templates-python-and-jinja2-generate-pdfs
-        latex_jinja_env = jinja2.Environment(
-            block_start_string=r'\BLOCK{',
-            block_end_string='}',
-            variable_start_string=r'\VAR{',
-            variable_end_string='}',
-            comment_start_string=r'\#{',
-            comment_end_string='}',
-            line_statement_prefix='%%',
-            line_comment_prefix='%#',
-            trim_blocks=True,
-            autoescape=False,
-        )
-        template = latex_jinja_env.from_string(input_template)
-        text = template.render(config=core.config, contest_name=core.contest_name)
-
-        main_file_content = self._main_file.read_text()
-        # Insert jinja2 header at top
-        main_file_content = text + '\n' + main_file_content
-        self._compile_tex_file.write_text(main_file_content)
 
 
     def post_run(self):
@@ -412,3 +387,39 @@ class ZipRule(Rule):
         with zipfile.ZipFile(self.output_file, 'w') as zipf:
             for zipname, path in self._members:
                 zipf.writestr(zipname, path.read_bytes())
+
+
+class GunzipRule(Rule):
+    def __init__(self, path: str, **kwargs):
+        self._gzip_file = Path(path)
+        super().__init__(
+            input_files=[self._gzip_file],
+            output_extension=''.join(self._gzip_file.suffixes[:-1]),
+            entropy=kwargs.pop('entropy', ''),
+            **kwargs,
+        )
+
+    def _execute(self):
+        with gzip.GzipFile(self._gzip_file, 'rb') as ifh:
+            with self.output_file.open('wb') as ofh:
+                shutil.copyfileobj(ifh, ofh)
+
+
+class UnzipRule(Rule):
+    def __init__(self, args: str, **kwargs):
+        zipfile, filename = shlex.split(args)
+        self._zip_file = Path(zipfile)
+        self._extract_filename = filename
+
+        super().__init__(
+            input_files=[self._zip_file],
+            output_extension=Path(filename).suffix,
+            entropy=kwargs.pop('entropy', ''),
+            **kwargs,
+        )
+
+    def _execute(self):
+        with zipfile.ZipFile(self._zip_file, 'r') as zipf:
+            with zipf.open(self._extract_filename, 'r') as ifh:
+                with self.output_file.open('wb') as ofh:
+                    shutil.copyfileobj(ifh, ofh)
