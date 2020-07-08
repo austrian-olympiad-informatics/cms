@@ -423,3 +423,15 @@ class UnzipRule(Rule):
             with zipf.open(self._extract_filename, 'r') as ifh:
                 with self.output_file.open('wb') as ofh:
                     shutil.copyfileobj(ifh, ofh)
+
+
+class EmptyRule(Rule):
+    def __init__(self, **kwargs):
+        super().__init__(
+            input_files=[],
+            entropy=kwargs.pop('entropy', ''),
+            **kwargs,
+        )
+
+    def _execute(self):
+        self.output_file.write_bytes(b'')
