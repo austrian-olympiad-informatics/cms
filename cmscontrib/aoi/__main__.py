@@ -247,9 +247,9 @@ def run_test_submissions(args, config, put_file):
         submissions = []
         for path, points in config[CONF_TEST_SUBMISSIONS].items():
             digest = put_file(path, f"Test submission file {path} for {name}")
-
+            comment = f"Test {Path(path).name} for {points}P"
             submission = Submission(timestamp=datetime.utcnow(), language=filename_to_language(path).name,
-                                    participation=participation, task=task)
+                                    participation=participation, task=task, comment=comment)
             session.add(File(filename=f'{task.name}.%l', digest=digest, submission=submission))
             session.add(submission)
             _LOGGER.info("  - Submission %s for %s points", path, points)
