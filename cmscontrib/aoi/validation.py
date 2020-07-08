@@ -9,7 +9,8 @@ from cmscontrib.aoi.const import CONF_NAME, CONF_LONG_NAME, CONF_AUTHOR, CONF_AT
     CONF_TIME_LIMIT, CONF_MEMORY_LIMIT, CONF_SAMPLE_SOLUTION, CONF_GRADER, CONF_TASK_TYPE, CONF_SUBTASKS, CONF_POINTS, \
     CONF_TESTCASES, CONF_INPUT, CONF_OUTPUT, CONF_CHECKER, CONF_TEST_SUBMISSIONS, CONF_GCC_ARGS, CONF_LATEX_CONFIG, \
     CONF_LATEXMK_ARGS, CONF_ADDITIONAL_FILES, FEEDBACK_LEVELS, SCORE_MODES, SCORE_TYPES, TASK_TYPES, CONF_CPP_CONFIG, \
-    CONF_INPUT_TEMPLATE, CONF_PUBLIC, CONF_TOKENS, CONF_MAX_NUMBER, CONF_INITIAL, CONF_GEN_NUMBER, TOKEN_MODES
+    CONF_INPUT_TEMPLATE, CONF_PUBLIC, CONF_TOKENS, CONF_MAX_NUMBER, CONF_INITIAL, CONF_GEN_NUMBER, TOKEN_MODES, \
+    CONF_NUM_PROCESSES, CONF_MANAGER, CONF_CODENAME
 from cmscontrib.aoi.yaml_loader import AOITag
 from cmscontrib.aoi.rule import GunzipRule, UnzipRule
 
@@ -152,7 +153,11 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Required(CONF_MEMORY_LIMIT): float_with_unit('MiB'),
     vol.Optional(CONF_SAMPLE_SOLUTION): validate_file,
     vol.Optional(CONF_GRADER, default=[]): [validate_file],
-    vol.Required(CONF_TASK_TYPE): one_of(*TASK_TYPES),
+    vol.Required(CONF_TASK_TYPE): vol.Any('BATCH', 'OUTPUT_ONLY', {
+        vol.Required(CONF_TYPE): 'COMMUNICATION',
+        vol.Required(CONF_MANAGER): validate_file,
+        vol.Optional(CONF_NUM_PROCESSES, default=1): vol.Coerce(int),
+    }),
     vol.Required(CONF_SUBTASKS): [vol.All(vol.Schema({
         vol.Required(CONF_POINTS): vol.Coerce(float),
         vol.Optional(CONF_PUBLIC, default=True): vol.Coerce(bool),
@@ -160,6 +165,7 @@ CONFIG_SCHEMA = vol.Schema({
             vol.Optional(CONF_INPUT): validate_file_glob,
             vol.Optional(CONF_OUTPUT): validate_file_glob,
             vol.Optional(CONF_PUBLIC): vol.Coerce(bool),
+            vol.Optional(CONF_CODENAME): string,
         }, extra=vol.ALLOW_EXTRA)], flatten_testcase_globs),
     }, extra=vol.ALLOW_EXTRA), copy_public_to_testcases)],
     vol.Optional(CONF_CHECKER): validate_file,

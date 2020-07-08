@@ -20,9 +20,10 @@ from cmscontrib.aoi.const import CONF_EXTENDS, CONF_GCC_ARGS, CONF_LATEX_CONFIG,
     CONF_OUTPUT, CONF_INPUT, CONF_SCORE_OPTIONS, CONF_STATEMENTS, CONF_ATTACHMENTS, CONF_FEEDBACK_LEVEL, CONF_LONG_NAME, \
     CONF_DECIMAL_PLACES, SCORE_MODES, CONF_MODE, CONF_GRADER, CONF_CHECKER, CONF_TYPE, CONF_POINTS, CONF_TASK_TYPE, \
     CONF_TIME_LIMIT, CONF_MEMORY_LIMIT, SCORE_TYPES, TASK_TYPES, CONF_CPP_CONFIG, CONF_PUBLIC, \
-    CONF_TOKENS, CONF_INITIAL, CONF_GEN_NUMBER, TOKEN_MODES
+    CONF_TOKENS, CONF_INITIAL, CONF_GEN_NUMBER, TOKEN_MODES, CONF_MANAGER, CONF_NUM_PROCESSES, \
+    CONF_CODENAME
 from cmscontrib.aoi.core import core, CMSAOIError
-from cmscontrib.aoi.rule import Rule, ShellRule
+from cmscontrib.aoi.rule import Rule, ShellRule, EmptyRule
 from cmscontrib.aoi.util import copytree, copy_if_necessary
 from cmscontrib.aoi.validation import CONFIG_SCHEMA
 from cmscontrib.aoi.yaml_loader import load_yaml, AOITag
@@ -47,10 +48,12 @@ def merge_visit(full_base, full_extends):
         if extends is None:
             return base
         if isinstance(base, list):
-            assert isinstance(extends, list)
+            if not isinstance(extends, list):
+                return base
             return [visit(x, y) for x, y in zip(base, extends)]
         elif isinstance(base, dict):
-            assert isinstance(extends, dict)
+            if not isinstance(extends, dict):
+                return base
             ret = extends.copy()
             for k, v in base.items():
                 ret[k] = visit(v, extends.get(k))
@@ -386,6 +389,14 @@ def find_rules(config):
                                  dependencies=deps, base_directory=core.task_dir,
                                  name=f'samplesol {i:02d}_{j:02d}')
                 testcase[CONF_OUTPUT] = register_rule(rule)
+    else:
+        for i, subtask in enumerate(config[CONF_SUBTASKS], start=1):
+            for j, testcase in enumerate(subtask[CONF_TESTCASES], start=1):
+                if CONF_OUTPUT in testcase:
+                    # Output already exists
+                    continue
+                rule = EmptyRule(name=f"empty {i:02d}_{j:02d}")
+                testcase[CONF_OUTPUT] = register_rule(rule)
     return all_rules, config
 
 
@@ -402,7 +413,7 @@ def construct_task(config, all_rules, put_file):
     _LOGGER.info("")
 
     score_opt = config[CONF_SCORE_OPTIONS]
-    # Upload statements
+    # ================ STATEMENTS ================
     statements = {}
     for lang, pdf in config[CONF_STATEMENTS].items():
         digest = put_file(pdf, f"Statement for task {name} (lang: {lang})")
@@ -417,7 +428,7 @@ def construct_task(config, all_rules, put_file):
         args['primary_statements'] = [next(iter(statements.keys()))]
         _LOGGER.info("  - Primary statement: %s", args['primary_statements'][0])
 
-    # Upload attachments (if any)
+    # ================ ATTACHMENTS ================
     attachments = {}
     for fname, attachment in config[CONF_ATTACHMENTS].items():
         digest = put_file(attachment, f"Attachment {fname} for task {name}")
@@ -425,12 +436,21 @@ def construct_task(config, all_rules, put_file):
         _LOGGER.info("  - Attachment %s: '%s'", fname, lookup_friendly_filename(all_rules, attachment))
     if not attachments:
         _LOGGER.info("  - No task attachments!")
-
     _LOGGER.info("")
 
+    # ================ SUBMISSION FORMAT ================
     # Submission format (what the uploaded files are to be called, .%l is replaced by file suffix)
     submission_format = [f'{name}.%l']
-    _LOGGER.info("  - Submission format: '%s'", submission_format[0])
+    if config[CONF_TASK_TYPE] == "OUTPUT_ONLY":
+        # Output only has file for each testcase
+        submission_format.clear()
+        for i, subtask in enumerate(subtasks, start=1):
+            for j, testcase in enumerate(subtask[CONF_TESTCASES], start=1):
+                codename = testcase.get(CONF_CODENAME, f'{i:02d}_{j:02d}')
+                submission_format.append(f'output_{codename}.txt')
+    _LOGGER.info("  - Submission format: '%s'", ', '.join(submission_format))
+
+    # ================ FEEDBACK LEVEL / SCORING ================
     feedback_level = {
         'FULL': FEEDBACK_LEVEL_FULL,
         'RESTRICTED': FEEDBACK_LEVEL_RESTRICTED,
@@ -456,9 +476,11 @@ def construct_task(config, all_rules, put_file):
 
     _LOGGER.info("")
 
-    # Construct dataset
+    # ================ DATASET ================
     # Managers = additional files attached to the dataset (checker, grader files)
     managers = []
+
+    # ================ GRADER ================
     # How the submission is compiled (alone or with additional grader files)
     compilation_param = 'alone'
     for grader in config[CONF_GRADER]:
@@ -466,12 +488,21 @@ def construct_task(config, all_rules, put_file):
         grader_path = Path(grader)
         suffix = grader_path.suffix
         digest = put_file(grader, f"Grader for task {name} and ext {suffix}")
-        managers.append(Manager(filename=grader_path.name, digest=digest))
-        _LOGGER.info("  - Grader: '%s'", grader)
+        fname = grader_path.name
+        if grader_path.suffix == '.cpp':
+            if config[CONF_TASK_TYPE] == "BATCH":
+                fname = 'grader.cpp'
+            elif isinstance(config[CONF_TASK_TYPE], dict) and config[CONF_TASK_TYPE].get(CONF_TYPE) == 'COMMUNICATION':
+                fname = 'stub.cpp'
+            else:
+                return
+        managers.append(Manager(filename=fname, digest=digest))
+        _LOGGER.info("  - Grader: '%s' (as %s)", grader, fname)
         compilation_param = 'grader'
     if not config[CONF_GRADER]:
         _LOGGER.info("  - No graders, submission is compiled directly.")
 
+    # ================ CHECKER ================
     if CONF_CHECKER in config:
         # Check submissions with a checker - a program that is called with parameters:
         #  <INPUT_FILE> <CONTESTANT_OUTPUT> <OUTPUT_FILE>
@@ -487,6 +518,8 @@ def construct_task(config, all_rules, put_file):
         _LOGGER.info("  - Testcase output is checked with an output diff.")
 
     subtasks = config[CONF_SUBTASKS]
+
+    # ================ SCORE TYPE ================
     # Score type: How scores of the individual testcases are combined to the score of a submission
     score_type = score_opt[CONF_TYPE]
     if score_type == 'SUM':
@@ -501,33 +534,67 @@ def construct_task(config, all_rules, put_file):
     else:
         # Other score types not implemented yet
         raise NotImplementedError
-
     _LOGGER.info("")
 
-    # Upload testcases
+    # ================ TESTCASES ================
     testcases = []
     for i, subtask in enumerate(subtasks, start=1):
         _LOGGER.info("  - Subtask %s worth %s points:", i, subtask[CONF_POINTS])
         for j, testcase in enumerate(subtask[CONF_TESTCASES], start=1):
             input_digest = put_file(testcase[CONF_INPUT], f"Input {j} for task {name}")
             output_digest = put_file(testcase[CONF_OUTPUT], f"Output {j} for task {name}")
-            testcases.append(Testcase(codename=f'{i:02d}_{j:02d}', public=testcase[CONF_PUBLIC],
-                                      input=input_digest, output=output_digest))
+            codename = testcase.get(CONF_CODENAME, f'{i:02d}_{j:02d}')
+
+            tc = Testcase(codename=codename, public=testcase[CONF_PUBLIC],
+                          input=input_digest, output=output_digest)
+            testcases.append(tc)
+
             _LOGGER.info("    - Testcase %s: Input '%s', Output '%s'",
-                         j, lookup_friendly_filename(all_rules, testcase[CONF_INPUT]),
+                         codename, lookup_friendly_filename(all_rules, testcase[CONF_INPUT]),
                          lookup_friendly_filename(all_rules, testcase[CONF_OUTPUT]))
         _LOGGER.info("")
-
     _LOGGER.info("")
 
+    # ================ TASK TYPE ================
     if config[CONF_TASK_TYPE] == "BATCH":
         # Batch task type, user program is called and a checker (or whitespace diff) is perfomed on output
         # to determine outcome
-        task_type_params = [compilation_param, ['', ''], evaluation_param]
-        _LOGGER.info("  - Task Type: Batch")
+        task_type_params = [
+            # compiled alone (`alone`) or with grader (`grader`)
+            compilation_param,
+            # I/O, empty for stdin/stdout. Otherwise filenames for input/output files
+            ['', ''],
+            # Evaluated by white-diff (`diff`) or with checker (`comparator`)
+            evaluation_param
+        ]
+        task_type = 'Batch'
+    elif config[CONF_TASK_TYPE] == "OUTPUT_ONLY":
+        task_type_params = [
+            # Evaluated by white-diff (`diff`) or with checker (`comparator`)
+            evaluation_param
+        ]
+        task_type = 'OutputOnly'
+    elif isinstance(config[CONF_TASK_TYPE], dict):
+        conf = config[CONF_TASK_TYPE]
+        if conf.get(CONF_TYPE) == 'COMMUNICATION':
+            task_type_params = [
+                # Number of user processes spawned
+                conf[CONF_NUM_PROCESSES],
+                # compiled alone (`alone`) or with grader (`stub`)
+                'stub' if compilation_param == 'grader' else 'alone',
+                # User I/O on stdin/out (std_io) or via fifos (fifo_io)
+                'std_io'
+            ]
+            digest = put_file(conf[CONF_MANAGER], f'Communication manager for task {name}')
+            managers.append(Manager(filename='manager', digest=digest))
+            task_type = 'Communication'
+        else:
+            raise NotImplementedError
     else:
         raise NotImplementedError
+    _LOGGER.info("  - Task Type: %s", task_type)
 
+    # ================ LIMITS ================
     time_limit = config[CONF_TIME_LIMIT]
     _LOGGER.info("  - Time limit: %s s", time_limit)
     memory_limit = int(config[CONF_MEMORY_LIMIT])
@@ -539,7 +606,7 @@ def construct_task(config, all_rules, put_file):
         # managers+testcases are mapped to filename/codename
         managers={m.filename: m for m in managers}, testcases={tc.codename: tc for tc in testcases},
         time_limit=time_limit, memory_limit=memory_limit,
-        task_type=TASK_TYPES[config[CONF_TASK_TYPE]], score_type=SCORE_TYPES[score_type],
+        task_type=task_type, score_type=SCORE_TYPES[score_type],
         task_type_parameters=task_type_params, score_type_parameters=score_type_params
     )
     # Set dataset as the active one

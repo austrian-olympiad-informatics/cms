@@ -15,6 +15,7 @@ SCORE_TYPES = {
 TASK_TYPES = {
     'BATCH': 'Batch',
     'OUTPUT_ONLY': 'OutputOnly',
+    'COMMUNICATION': 'Communication',
 }
 TOKEN_MODES = {
     'DISABLED': "disabled",
@@ -59,3 +60,6 @@ CONF_TOKENS = 'tokens'
 CONF_MAX_NUMBER = 'max_number'
 CONF_INITIAL = 'initial'
 CONF_GEN_NUMBER = 'gen_number'
+CONF_NUM_PROCESSES = 'num_processes'
+CONF_MANAGER = 'manager'
+CONF_CODENAME = 'codename'
