@@ -1,4 +1,6 @@
 from pathlib import Path
+import zipfile
+import shlex
 
 import voluptuous as vol
 
@@ -9,6 +11,7 @@ from cmscontrib.aoi.const import CONF_NAME, CONF_LONG_NAME, CONF_AUTHOR, CONF_AT
     CONF_LATEXMK_ARGS, CONF_ADDITIONAL_FILES, FEEDBACK_LEVELS, SCORE_MODES, SCORE_TYPES, TASK_TYPES, CONF_CPP_CONFIG, \
     CONF_INPUT_TEMPLATE, CONF_PUBLIC, CONF_TOKENS, CONF_MAX_NUMBER, CONF_INITIAL, CONF_GEN_NUMBER, TOKEN_MODES
 from cmscontrib.aoi.yaml_loader import AOITag
+from cmscontrib.aoi.rule import GunzipRule, UnzipRule
 
 
 def validate_file(value):
@@ -22,9 +25,31 @@ def validate_file(value):
     return value
 
 
+def validate_file_autoextract(value):
+    # Validate a file but automatically extract
+    value = validate_file(value)
+    if not isinstance(value, str):
+        return value
+    suffixes = Path(value).suffixes
+    if not suffixes:
+        return value
+    if '.gz' == suffixes[-1]:
+        return AOITag(Path.cwd(), '!gunzip', GunzipRule, value)
+    if '.zip' == suffixes[-1]:
+        ret = []
+        with zipfile.ZipFile(Path(value), 'r') as zipf:
+            for info in zipf.infolist():
+                if info.is_dir() or Path(info.filename).name.startswith('.'):
+                    continue
+                ret.append(AOITag(Path.cwd(), '!unzip', UnzipRule,
+                           shlex.join([value, info.filename])))
+        return ret
+    return value
+
+
 def validate_file_glob(value):
     try:
-        return validate_file(value)
+        return validate_file_autoextract(value)
     except vol.Invalid as err:
         first_err = err
 
@@ -34,7 +59,7 @@ def validate_file_glob(value):
         raise first_err
     if not items:
         raise first_err
-    return items
+    return list(map(validate_file_autoextract, items))
 
 def flatten_testcase_globs(value):
     testcases = value
