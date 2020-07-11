@@ -6,6 +6,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Union, Dict
+import resource
 
 import gevent
 from voluptuous.humanize import humanize_error
@@ -110,6 +111,7 @@ def main():
     args = parser.parse_args()
 
     os.chdir(str(args.TASK_DIR))
+    resource.setrlimit(resource.RLIMIT_STACK, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
     core.task_dir = Path.cwd()
     if args.clean and core.internal_dir.is_dir():
         shutil.rmtree(core.internal_dir)
