@@ -12,7 +12,7 @@ from cmscontrib.aoi.const import CONF_NAME, CONF_LONG_NAME, CONF_AUTHOR, CONF_AT
     CONF_INPUT_TEMPLATE, CONF_PUBLIC, CONF_TOKENS, CONF_MAX_NUMBER, CONF_INITIAL, CONF_GEN_NUMBER, TOKEN_MODES, \
     CONF_NUM_PROCESSES, CONF_MANAGER, CONF_CODENAME
 from cmscontrib.aoi.yaml_loader import AOITag
-from cmscontrib.aoi.rule import GunzipRule, UnzipRule
+from cmscontrib.aoi.rule import GunzipRule, UnzipRule, XZUnzipRule
 
 
 def validate_file(value):
@@ -36,6 +36,8 @@ def validate_file_autoextract(value):
         return value
     if '.gz' == suffixes[-1]:
         return AOITag(Path.cwd(), '!gunzip', GunzipRule, value)
+    if '.xz' == suffixes[-1]:
+        return AOITag(Path.cwd(), '!xzunzip', XZUnzipRule, value)
     if '.zip' == suffixes[-1]:
         ret = []
         with zipfile.ZipFile(Path(value), 'r') as zipf:
