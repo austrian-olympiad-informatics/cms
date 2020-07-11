@@ -5,6 +5,7 @@ import shutil
 import string
 import subprocess
 import gzip
+import lzma
 import zipfile
 from abc import ABC
 from pathlib import Path
@@ -401,6 +402,22 @@ class GunzipRule(Rule):
 
     def _execute(self):
         with gzip.GzipFile(self._gzip_file, 'rb') as ifh:
+            with self.output_file.open('wb') as ofh:
+                shutil.copyfileobj(ifh, ofh)
+
+
+class XZUnzipRule(Rule):
+    def __init__(self, path: str, **kwargs):
+        self._xz_file = Path(path)
+        super().__init__(
+            input_files=[self._xz_file],
+            output_extension=''.join(self._xz_file.suffixes[:-1]),
+            entropy=kwargs.pop('entropy', ''),
+            **kwargs,
+        )
+
+    def _execute(self):
+        with lzma.LZMAFile(self._xz_file, 'rb') as ifh:
             with self.output_file.open('wb') as ofh:
                 shutil.copyfileobj(ifh, ofh)
 
