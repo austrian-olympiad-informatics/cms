@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python3
 
 # Contest Management System - http://cms-dev.github.io/
 # Copyright © 2014-2017 Luca Wehrstedt <luca.wehrstedt@gmail.com>
@@ -22,28 +21,20 @@
 
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-from future.builtins.disabled import *  # noqa
-from future.builtins import *  # noqa
-
 import unittest
+from unittest.mock import Mock, patch
 
 import gevent
-import gevent.socket
 import gevent.event
+import gevent.socket
 from gevent.server import StreamServer
-
-from mock import Mock, patch
 
 from cms import Address, ServiceCoord
 from cms.io import RPCError, rpc_method, RemoteServiceServer, \
     RemoteServiceClient
 
 
-class MockService(object):
+class MockService:
     def not_rpc_callable(self):
         pass
 

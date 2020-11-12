@@ -16,7 +16,7 @@ These are our requirements (in particular we highlight those that are not usuall
 
 * `GNU compiler collection <https://gcc.gnu.org/>`_ (in particular the C compiler ``gcc``);
 
-* `Python <http://www.python.org/>`_ 2.7 or >= 3.6;
+* `Python <http://www.python.org/>`_ >= 3.6;
 
 * `libcg <http://libcg.sourceforge.net/>`_;
 
@@ -28,9 +28,9 @@ You will also require a Linux kernel with support for control groups and namespa
 
 Then you require the compilation and execution environments for the languages you will use in your contest:
 
-* `GNU compiler collection <https://gcc.gnu.org/>`_ (for C, C++ and Java, respectively with executables ``gcc``, ``g++`` and ``gcj``);
+* `GNU compiler collection <https://gcc.gnu.org/>`_ (for C and C++, respectively with executables ``gcc`` and ``g++``);
 
-* alternatively, for Java, your choice of a JDK, for example OpenJDK (but any other JDK behaving similarly is fine, for example Oracle's);
+* for Java, your choice of a JDK, for example OpenJDK (but any other JDK behaving similarly is fine, for example Oracle's);
 
 * `Free Pascal <http://www.freepascal.org/>`_ (for Pascal, with executable ``fpc``);
 
@@ -64,8 +64,7 @@ On Ubuntu 18.04, one will need to run the following script to satisfy all depend
 
     # Optional
     sudo apt-get install nginx-full python2.7 php7.2-cli php7.2-fpm \
-        phppgadmin texlive-latex-base a2ps gcj-jdk haskell-platform rustc \
-        mono-mcs
+        phppgadmin texlive-latex-base a2ps haskell-platform rustc mono-mcs
 
 The above commands provide a very essential Pascal environment. Consider installing the following packages for additional units: `fp-units-base`, `fp-units-fcl`, `fp-units-misc`, `fp-units-math` and `fp-units-rtl`.
 
@@ -159,8 +158,6 @@ This command installs python dependencies globally. Note that on some distros, l
 Method 2: Virtual environment
 -----------------------------
 
-.. warning::
-
 An alternative method to perform the installation is with a `virtual environment <https://virtualenv.pypa.io/en/latest/>`_, which is an isolated Python environment that you can put wherever you like and that can be activated/deactivated at will.
 
 You will need to create a virtual environment somewhere in your filesystem. For example, let's assume that you decided to create it under your home directory (as ``~/cms_venv``):
@@ -204,10 +201,10 @@ To install CMS and its Python dependencies on Ubuntu, you can issue:
     sudo python3 setup.py install
 
     sudo apt-get install python3-setuptools python3-tornado python3-psycopg2 \
-         python3-sqlalchemy python3-psutil python3-netifaces python3-crypto \
-         python3-six python3-bs4 python3-coverage python3-mock python3-requests \
-         python3-werkzeug python3-gevent python3-bcrypt python3-chardet patool \
-         python3-babel python3-xdg python3-future python3-jinja2
+         python3-sqlalchemy python3-psutil python3-netifaces python3-pycryptodome \
+         python3-bs4 python3-coverage python3-requests python3-werkzeug \
+         python3-gevent python3-bcrypt python3-chardet patool python3-babel \
+         python3-xdg python3-jinja2
 
     # Optional.
     # sudo apt-get install python3-yaml python3-sphinx python3-cups python3-pypdf2
@@ -226,10 +223,10 @@ To install CMS python dependencies on Arch Linux (again: assuming you did not us
     sudo python3 setup.py install
 
     sudo pacman -S --needed python-setuptools python-tornado python-psycopg2 \
-         python-sqlalchemy python-psutil python-netifaces python-crypto \
-         python-six python-beautifulsoup4 python-coverage python-mock \
-         python-requests python-werkzeug python-gevent python-bcrypt \
-         python-chardet python-babel python-xdg python-future python-jinja
+         python-sqlalchemy python-psutil python-netifaces python-pycryptodome \
+         python-beautifulsoup4 python-coverage python-requests python-werkzeug \
+         python-gevent python-bcrypt python-chardet python-babel python-xdg \
+         python-jinja
 
     # Install the following from AUR.
     # https://aur.archlinux.org/packages/patool/

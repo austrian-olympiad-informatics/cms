@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python3
 
 # Contest Management System - http://cms-dev.github.io/
 # Copyright © 2014-2016 Stefano Maggiolo <s.maggiolo@gmail.com>
@@ -22,14 +21,6 @@ on notifications and sweeper loops.
 
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-from future.builtins.disabled import *  # noqa
-from future.builtins import *  # noqa
-from six import with_metaclass
-
 import logging
 import time
 from abc import ABCMeta, abstractmethod
@@ -38,13 +29,12 @@ import gevent
 from gevent.event import Event
 
 from cms.io import PriorityQueue, Service, rpc_method
-from cmscommon.datetime import monotonic_time
 
 
 logger = logging.getLogger(__name__)
 
 
-class Executor(with_metaclass(ABCMeta, object)):  # pylint: disable=R0921
+class Executor(metaclass=ABCMeta):
 
     """A class taking care of executing operations.
 
@@ -65,7 +55,7 @@ class Executor(with_metaclass(ABCMeta, object)):  # pylint: disable=R0921
             at a time.
 
         """
-        super(Executor, self).__init__()
+        super().__init__()
 
         self._batch_executions = batch_executions
         self._operation_queue = PriorityQueue()
@@ -316,7 +306,7 @@ class TriggeredService(Service):
 
         """
         while True:
-            self._sweeper_start = monotonic_time()
+            self._sweeper_start = time.monotonic()
             self._sweeper_event.clear()
 
             try:
@@ -327,7 +317,7 @@ class TriggeredService(Service):
 
             self._sweeper_event.wait(max(self._sweeper_start +
                                          self._sweeper_timeout -
-                                         monotonic_time(), 0))
+                                         time.monotonic(), 0))
 
     def _sweep(self):
         """Check for missed operations."""

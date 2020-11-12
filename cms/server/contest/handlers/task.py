@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python3
 
 # Contest Management System - http://cms-dev.github.io/
 # Copyright © 2010-2014 Giovanni Mascellani <mascellani@poisson.phc.unipi.it>
@@ -29,23 +28,14 @@
 
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-from future.builtins.disabled import *  # noqa
-from future.builtins import *  # noqa
-
 import logging
 
 import tornado.web
 
 from cms.server import multi_contest
 from cmscommon.mimetypes import get_type_for_file_name
-
-from ..phase_management import actual_phase_required
-
 from .contest import ContestHandler, FileHandler
+from ..phase_management import actual_phase_required
 
 
 logger = logging.getLogger(__name__)

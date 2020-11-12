@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python3
 
 # Contest Management System - http://cms-dev.github.io/
 # Copyright © 2010-2012 Giovanni Mascellani <mascellani@poisson.phc.unipi.it>
@@ -9,6 +8,7 @@
 # Copyright © 2013 Bernard Blackham <bernard@largestprime.net>
 # Copyright © 2016 Myungwoo Chun <mc.tamaki@gmail.com>
 # Copyright © 2016 Amir Keivan Mohtashami <akmohtashami97@gmail.com>
+# Copyright © 2018 William Di Luigi <williamdiluigi@gmail.com>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -27,24 +27,16 @@
 
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-from future.builtins.disabled import *  # noqa
-from future.builtins import *  # noqa
-
 from datetime import datetime, timedelta
 
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.ext.orderinglist import ordering_list
+from sqlalchemy.orm import relationship
 from sqlalchemy.schema import Column, ForeignKey, CheckConstraint
 from sqlalchemy.types import Integer, Unicode, DateTime, Interval, Enum, \
     Boolean, String
-from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import ARRAY
 
 from cms import TOKEN_MODE_DISABLED, TOKEN_MODE_FINITE, TOKEN_MODE_INFINITE
-
 from . import Codename, Base, Admin
 
 
@@ -118,6 +110,12 @@ class Contest(Base):
         Boolean,
         nullable=False,
         default=True)
+
+    # Whether the registration of new users is enabled.
+    allow_registration = Column(
+        Boolean,
+        nullable=False,
+        default=False)
 
     # Whether to enforce that the IP address of the request matches
     # the IP address or subnet specified for the participation (if

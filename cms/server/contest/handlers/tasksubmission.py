@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python3
 
 # Contest Management System - http://cms-dev.github.io/
 # Copyright © 2010-2014 Giovanni Mascellani <mascellani@poisson.phc.unipi.it>
@@ -30,22 +29,10 @@
 
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-import hashlib
-import os
-
-from future.builtins.disabled import *  # noqa
-from future.builtins import *  # noqa
-
 import logging
 import re
 
 import tornado.web
-
 from sqlalchemy.orm import joinedload
 
 from cms import config, FEEDBACK_LEVEL_FULL, TOKEN_MODE_DISABLED
@@ -59,10 +46,8 @@ from cms.server.contest.tokening import \
     UnacceptableToken, TokenAlreadyPlayed, accept_token, tokens_available
 from cmscommon.crypto import encrypt_number
 from cmscommon.mimetypes import get_type_for_file_name
-
-from ..phase_management import actual_phase_required
-
 from .contest import ContestHandler, FileHandler
+from ..phase_management import actual_phase_required
 
 
 logger = logging.getLogger(__name__)
@@ -99,8 +84,8 @@ class SubmitHandler(ContestHandler):
                 self.get_argument("language", None), official)
             self.sql_session.commit()
         except UnacceptableSubmission as e:
-            logger.info("Sent error: `%s' - `%s'", e.subject, e.text)
-            self.notify_error(e.subject, e.text)
+            logger.info("Sent error: `%s' - `%s'", e.subject, e.formatted_text)
+            self.notify_error(e.subject, e.text, e.text_params)
         else:
             self.service.evaluation_service.new_submission(
                 submission_id=submission.id)
@@ -139,9 +124,9 @@ class TaskSubmissionsHandler(ContestHandler):
             .all()
 
         public_score, is_public_score_partial = task_score(
-            participation, task, public=True)
+            participation, task, public=True, rounded=True)
         tokened_score, is_tokened_score_partial = task_score(
-            participation, task, only_tokened=True)
+            participation, task, only_tokened=True, rounded=True)
         # These two should be the same, anyway.
         is_score_partial = is_public_score_partial or is_tokened_score_partial
 
@@ -186,6 +171,14 @@ class TaskSubmissionsHandler(ContestHandler):
 
 class SubmissionStatusHandler(ContestHandler):
 
+    STATUS_TEXT = {
+        SubmissionResult.COMPILING: N_("Compiling..."),
+        SubmissionResult.COMPILATION_FAILED: N_("Compilation failed"),
+        SubmissionResult.EVALUATING: N_("Evaluating..."),
+        SubmissionResult.SCORING: N_("Scoring..."),
+        SubmissionResult.SCORED: N_("Evaluated"),
+    }
+
     refresh_cookie = False
 
     def add_task_score(self, participation, task, data):
@@ -209,9 +202,9 @@ class SubmissionStatusHandler(ContestHandler):
             .options(joinedload(Submission.results))\
             .all()
         data["task_public_score"], public_score_is_partial = \
-            task_score(participation, task, public=True)
+            task_score(participation, task, public=True, rounded=True)
         data["task_tokened_score"], tokened_score_is_partial = \
-            task_score(participation, task, only_tokened=True)
+            task_score(participation, task, only_tokened=True, rounded=True)
         # These two should be the same, anyway.
         data["task_score_is_partial"] = \
             public_score_is_partial or tokened_score_is_partial
@@ -246,39 +239,36 @@ class SubmissionStatusHandler(ContestHandler):
         else:
             data["status"] = sr.get_status()
 
-        if data["status"] == SubmissionResult.COMPILING:
-            data["status_text"] = self._("Compiling...")
-        elif data["status"] == SubmissionResult.COMPILATION_FAILED:
-            data["status_text"] = self._("Compilation failed")
-        elif data["status"] == SubmissionResult.EVALUATING:
-            data["status_text"] = self._("Evaluating...")
-        elif data["status"] == SubmissionResult.SCORING:
-            data["status_text"] = self._("Scoring...")
-        elif data["status"] == SubmissionResult.SCORED:
-            data["status_text"] = self._("Evaluated")
+        data["status_text"] = self._(self.STATUS_TEXT[data["status"]])
+
+        # For terminal statuses we add the scores information to the payload.
+        if data["status"] == SubmissionResult.COMPILATION_FAILED \
+                or data["status"] == SubmissionResult.SCORED:
             self.add_task_score(submission.participation, task, data)
 
             score_type = task.active_dataset.score_type_object
             if score_type.max_public_score > 0:
                 data["max_public_score"] = \
                     round(score_type.max_public_score, task.score_precision)
-                data["public_score"] = \
-                    round(sr.public_score, task.score_precision)
-                data["public_score_message"] = score_type.format_score(
-                    sr.public_score, score_type.max_public_score,
-                    sr.public_score_details, task.score_precision,
-                    translation=self.translation)
+                if data["status"] == SubmissionResult.SCORED:
+                    data["public_score"] = \
+                        round(sr.public_score, task.score_precision)
+                    data["public_score_message"] = score_type.format_score(
+                        sr.public_score, score_type.max_public_score,
+                        sr.public_score_details, task.score_precision,
+                        translation=self.translation)
             if score_type.max_public_score < score_type.max_score \
                     and (submission.token is not None
                          or self.r_params["actual_phase"] == 3):
                 data["max_score"] = \
                     round(score_type.max_score, task.score_precision)
-                data["score"] = \
-                    round(sr.score, task.score_precision)
-                data["score_message"] = score_type.format_score(
-                    sr.score, score_type.max_score,
-                    sr.score_details, task.score_precision,
-                    translation=self.translation)
+                if data["status"] == SubmissionResult.SCORED:
+                    data["score"] = \
+                        round(sr.score, task.score_precision)
+                    data["score_message"] = score_type.format_score(
+                        sr.score, score_type.max_score,
+                        sr.score_details, task.score_precision,
+                        translation=self.translation)
 
         self.write(data)
 
@@ -316,6 +306,9 @@ class SubmissionDetailsHandler(ContestHandler):
                 feedback_level = FEEDBACK_LEVEL_FULL
             else:
                 feedback_level = task.feedback_level
+
+            details = score_type.get_html_details(
+                raw_details, feedback_level, translation=self.translation)
 
             details = score_type.get_html_details(
                 raw_details, feedback_level, translation=self.translation)
