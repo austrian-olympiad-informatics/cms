@@ -31,6 +31,8 @@
 
 import logging
 import re
+import os
+import hashlib
 
 import tornado.web
 from sqlalchemy.orm import joinedload
