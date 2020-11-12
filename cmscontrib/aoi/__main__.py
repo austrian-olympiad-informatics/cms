@@ -607,7 +607,7 @@ def construct_task(config, all_rules, put_file):
         task=task, description="Default",
         # managers+testcases are mapped to filename/codename
         managers={m.filename: m for m in managers}, testcases={tc.codename: tc for tc in testcases},
-        time_limit=time_limit, memory_limit=memory_limit,
+        time_limit=time_limit, memory_limit=memory_limit * 1048576,
         task_type=task_type, score_type=SCORE_TYPES[score_type],
         task_type_parameters=task_type_params, score_type_parameters=score_type_params
     )
