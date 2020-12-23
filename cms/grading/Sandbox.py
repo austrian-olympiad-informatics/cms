@@ -1114,6 +1114,7 @@ class IsolateSandbox(SandboxBase):
             res += ["--wall-time=%g" % self.wallclock_timeout]
         if self.extra_timeout is not None:
             res += ["--extra-time=%g" % self.extra_timeout]
+        res += ["--aa-profile=cms%s" % self.name]
         res += ["--meta=%s" % ("%s.%d" % (self.info_basename, self.exec_num))]
         res += ["--run"]
         return res
