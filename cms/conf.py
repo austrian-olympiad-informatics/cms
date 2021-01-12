@@ -109,6 +109,9 @@ class Config:
         # Sandbox.
         # Max size of each writable file during an evaluation step, in KiB.
         self.max_file_size = 1024 * 1024  # 1 GiB
+        self.apparmor_enabled = False
+        self.seccomp_enabled = False
+        self.chroot_base_image = None
         # Max processes, CPU time (s), memory (KiB) for compilation runs.
         self.compilation_sandbox_max_processes = 1000
         self.compilation_sandbox_max_time_s = 10.0

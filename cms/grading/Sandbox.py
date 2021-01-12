@@ -926,7 +926,8 @@ class IsolateSandbox(SandboxBase):
 
         # Needed on Ubuntu by PHP (and more), since /usr/bin only contains a
         # symlink to one out of many alternatives.
-        self.maybe_add_mapped_directory("/etc/alternatives")
+        if config.chroot_base_image is None:
+            self.maybe_add_mapped_directory("/etc/alternatives")
 
         # Tell isolate to get the sandbox ready. We do our best to cleanup
         # after ourselves, but we might have missed something if a previous
@@ -1072,6 +1073,14 @@ class IsolateSandbox(SandboxBase):
             res += ["--box-id=%d" % self.box_id]
         if self.cgroup:
             res += ["--cg", "--cg-timing"]
+        if config.chroot_base_image is not None:
+            res += [
+                '--no-default-dirs',
+                f'--dir=/={config.chroot_base_image}',
+                '--dir=proc=proc:fs',
+                '--dir=dev',
+                '--dir=box=./box:rw',
+            ]
         if self.chdir is not None:
             res += ["--chdir=%s" % self.chdir]
         for src, dest, options in self.dirs:
@@ -1114,7 +1123,10 @@ class IsolateSandbox(SandboxBase):
             res += ["--wall-time=%g" % self.wallclock_timeout]
         if self.extra_timeout is not None:
             res += ["--extra-time=%g" % self.extra_timeout]
-        res += ["--aa-profile=cms%s" % self.name]
+        if config.apparmor_enabled:
+            res += ["--aa-profile=cms%s" % self.name]
+        if config.seccomp_enabled:
+            res += ["--enable-seccomp"]
         res += ["--meta=%s" % ("%s.%d" % (self.info_basename, self.exec_num))]
         res += ["--run"]
         return res
