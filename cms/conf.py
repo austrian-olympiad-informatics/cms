@@ -101,6 +101,9 @@ class SandboxConfig:
     trusted_sandbox_max_processes: int = 1000
     trusted_sandbox_max_time_s: float = 10.0
     trusted_sandbox_max_memory_kib: int = 4 * 1024 * 1024  # 4 GiB
+    apparmor_enabled: bool = False
+    seccomp_enabled: bool = False
+    chroot_base_image: str | None = None
 
 
 @dataclass()
