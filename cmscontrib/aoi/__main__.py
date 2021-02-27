@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Union, Dict
 import resource
+import subprocess
 
 import gevent
 from voluptuous.humanize import humanize_error
@@ -22,7 +23,7 @@ from cmscontrib.aoi.const import CONF_EXTENDS, CONF_GCC_ARGS, CONF_LATEX_CONFIG,
     CONF_DECIMAL_PLACES, SCORE_MODES, CONF_MODE, CONF_GRADER, CONF_CHECKER, CONF_TYPE, CONF_POINTS, CONF_TASK_TYPE, \
     CONF_TIME_LIMIT, CONF_MEMORY_LIMIT, SCORE_TYPES, TASK_TYPES, CONF_CPP_CONFIG, CONF_PUBLIC, \
     CONF_TOKENS, CONF_INITIAL, CONF_GEN_NUMBER, TOKEN_MODES, CONF_MANAGER, CONF_NUM_PROCESSES, \
-    CONF_CODENAME
+    CONF_CODENAME, CONF_TESTCASE_CHECKER
 from cmscontrib.aoi.core import core, CMSAOIError
 from cmscontrib.aoi.rule import Rule, ShellRule, EmptyRule
 from cmscontrib.aoi.util import copytree, copy_if_necessary
@@ -174,12 +175,29 @@ def main_run(args):
 
     # Copy results to new directory (so that testcases can be searched more easily)
     core.result_dir.mkdir(exist_ok=True)
+
+    testcase_checker_error = False
     for i, subtask in enumerate(config[CONF_SUBTASKS], start=1):
         for j, testcase in enumerate(subtask[CONF_TESTCASES], start=1):
-            copy_if_necessary(Path(testcase[CONF_INPUT]),
-                              core.result_dir / f'{i:02d}_{j:02d}.in')
-            copy_if_necessary(Path(testcase[CONF_OUTPUT]),
-                              core.result_dir / f'{i:02d}_{j:02d}.out')
+            result_in = core.result_dir / f'{i:02d}_{j:02d}.in'
+            result_out = core.result_dir / f'{i:02d}_{j:02d}.out'
+            copy_if_necessary(Path(testcase[CONF_INPUT]), result_in)
+            copy_if_necessary(Path(testcase[CONF_OUTPUT]), result_out)
+
+            if CONF_TESTCASE_CHECKER in config:
+                checker = config[CONF_TESTCASE_CHECKER]
+                stdin = result_in.open("rb")
+                try:
+                    subprocess.check_call([str(checker), str(i)], stdin=stdin)
+                except subprocess.CalledProcessError as err:
+                    testcase_checker_error = True
+                    _LOGGER.error("Testcase checker for %s failed.", result_in)
+                    _LOGGER.error(str(err))
+                finally:
+                    stdin.close()
+    if testcase_checker_error:
+        raise CMSAOIError(f"Testcase checker failed!")
+
     for lang, statement in config[CONF_STATEMENTS].items():
         copy_if_necessary(Path(statement), core.result_dir / f'{lang}.pdf')
     for fname, attachment in config[CONF_ATTACHMENTS].items():
