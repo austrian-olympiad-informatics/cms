@@ -158,6 +158,27 @@ class TaskSubmissionsHandler(ContestHandler):
 
         tokens_info = tokens_available(participation, task, self.timestamp)
 
+        garage_shortest_solution = int(1e9)
+        if task.name == 'GARAGE':
+            from cms.db import Task, Participation, Evaluation
+            q = self.sql_session.query(Evaluation.text) \
+                .join(Evaluation.submission_result) \
+                .filter(SubmissionResult.score == 100) \
+                .join(SubmissionResult.submission) \
+                .join(Submission.participation) \
+                .join(Submission.task) \
+                .filter(Participation.hidden == False) \
+                .filter(Submission.official) \
+                .filter(Task.name == 'GARAGE')
+            for row in q:
+                text = row[0][0]
+                print(text)
+                m = re.search(r'(\d+) Zeichen', text)
+                if m is None:
+                    continue
+                garage_shortest_solution = min(garage_shortest_solution, int(m.group(1)))
+
+
         download_allowed = self.contest.submissions_download_allowed
         self.render("task_submissions.html",
                     task=task, submissions=submissions,
@@ -168,6 +189,7 @@ class TaskSubmissionsHandler(ContestHandler):
                     tokens_info=tokens_info,
                     submissions_left=submissions_left,
                     submissions_download_allowed=download_allowed,
+                    garage_shortest_solution=garage_shortest_solution,
                     **self.r_params)
 
 
