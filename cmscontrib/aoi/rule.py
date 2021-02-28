@@ -368,10 +368,18 @@ class ZipRule(Rule):
         self._members = []
         input_files = []
         for arg in shlex.split(args):
+            if '*' in arg:
+                assert '=' not in arg
+                for p in Path.cwd().glob(arg):
+                    zipname = p.name
+                    self._members.append((p.name, p))
+                    input_files.append(p)
+                continue
+
             if '=' in arg:
                 zipname, pathname = arg.split('=')
             else:
-                zipname = arg
+                zipname = Path(arg).name
                 pathname = arg
             path = Path(pathname)
             self._members.append((zipname, path))
