@@ -165,6 +165,7 @@ setup(
             "cmsSpoolExporter=cmscontrib.SpoolExporter:main",
             "cmsMake=cmstaskenv.cmsMake:main",
             "cmsAOI=cmscontrib.aoi.__main__:main",
+            "_cmsAOIzip=cmscontrib.aoi.zipprog:main",
             "cmsPrometheusExporter=cmscontrib.PrometheusExporter:main",
             "cmsTelegramBot=cmscontrib.TelegramBot:main",
         ],

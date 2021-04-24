@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import List, Optional, Union, Dict
 import resource
 import subprocess
+import io
 
 import gevent
 from voluptuous.humanize import humanize_error
@@ -25,8 +26,8 @@ from cmscontrib.aoi.const import CONF_EXTENDS, CONF_GCC_ARGS, CONF_LATEX_CONFIG,
     CONF_TOKENS, CONF_INITIAL, CONF_GEN_NUMBER, TOKEN_MODES, CONF_MANAGER, CONF_NUM_PROCESSES, \
     CONF_CODENAME, CONF_TESTCASE_CHECKER
 from cmscontrib.aoi.core import core, CMSAOIError
-from cmscontrib.aoi.rule import Rule, ShellRule, EmptyRule
-from cmscontrib.aoi.util import copytree, copy_if_necessary
+from cmscontrib.aoi import ninja_syntax, rule
+from cmscontrib.aoi.util import copytree, copy_if_necessary, write_if_changed
 from cmscontrib.aoi.validation import CONFIG_SCHEMA
 from cmscontrib.aoi.yaml_loader import load_yaml, AOITag
 
@@ -34,15 +35,15 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def recursive_visit(config, func):
-    def visit(value):
-        value = func(value)
+    def visit(value, path):
+        value = func(value, path)
         if isinstance(value, list):
-            value = [visit(x) for x in value]
+            value = [visit(x, [*path, i]) for i, x in enumerate(value)]
         elif isinstance(value, dict):
-            value = {visit(k): visit(v) for k, v in value.items()}
+            value = {visit(k, [*path, k]): visit(v, [*path, k]) for k, v in value.items()}
         return value
 
-    return visit(config)
+    return visit(config, [])
 
 
 def merge_visit(full_base, full_extends):
@@ -163,51 +164,36 @@ def main_run(args):
         _LOGGER.warning("Could not determine contest name from ID - latex won't automatically set in latex header (%s)",
                         e, exc_info=0)
 
-    copytree(core.task_dir, core.internal_build_dir, ignore={core.internal_dir})
+    # copytree(core.task_dir, core.internal_build_dir, ignore={core.internal_dir})
 
     # Find rules (stuff to be executed) in config and replace them by the resulting filename
     all_rules, config = find_rules(config)
     core.config = config
+    patch_pth()
 
-    # Execute all rules synchronously
-    for rule in all_rules.values():
-        rule.ensure()
-
-    # Copy results to new directory (so that testcases can be searched more easily)
     core.result_dir.mkdir(exist_ok=True)
 
-    testcase_checker_error = False
-    for i, subtask in enumerate(config[CONF_SUBTASKS], start=1):
-        for j, testcase in enumerate(subtask[CONF_TESTCASES], start=1):
-            result_in = core.result_dir / f'{i:02d}_{j:02d}.in'
-            result_out = core.result_dir / f'{i:02d}_{j:02d}.out'
-            copy_if_necessary(Path(testcase[CONF_INPUT]), result_in)
-            copy_if_necessary(Path(testcase[CONF_OUTPUT]), result_out)
+    # Execute all rules synchronously
+    ninja_build_file = core.internal_dir / 'build.ninja'
+    fh = io.StringIO()
+    writer = ninja_syntax.Writer(fh)
+    writer.variable('TASKDIR', str(core.task_dir))
+    for klass in rule.registered_rules.values():
+        klass.write_rule(writer)
+    for rule_ in all_rules.values():
+        rule_.write_build(writer)
+    fh.seek(0)
+    content = fh.read()
+    fh.close()
 
-            if CONF_TESTCASE_CHECKER in config:
-                checker = config[CONF_TESTCASE_CHECKER]
-                stdin = result_in.open("rb")
-                try:
-                    subprocess.check_call([str(checker), str(i)], stdin=stdin)
-                except subprocess.CalledProcessError as err:
-                    testcase_checker_error = True
-                    _LOGGER.error("Testcase checker for %s failed.", result_in)
-                    _LOGGER.error(str(err))
-                finally:
-                    stdin.close()
-    if testcase_checker_error:
-        raise CMSAOIError(f"Testcase checker failed!")
+    write_if_changed(content, ninja_build_file)
 
-    for lang, statement in config[CONF_STATEMENTS].items():
-        copy_if_necessary(Path(statement), core.result_dir / f'{lang}.pdf')
-    for fname, attachment in config[CONF_ATTACHMENTS].items():
-        copy_if_necessary(Path(attachment), core.result_dir / fname)
-    if CONF_CHECKER in config:
-        copy_if_necessary(Path(config[CONF_CHECKER]), core.result_dir / 'checker')
-    for grader in config[CONF_GRADER]:
-        copy_if_necessary(Path(grader), core.result_dir / Path(grader).name)
-    if CONF_SAMPLE_SOLUTION in config:
-        copy_if_necessary(Path(config[CONF_SAMPLE_SOLUTION]), core.result_dir / 'samplesol')
+    _LOGGER.info("Running ninja -f %s", ninja_build_file)
+    try:
+        subprocess.check_call(['ninja', '-f', str(ninja_build_file)])
+    except subprocess.CalledProcessError as err:
+        _LOGGER.error("Build failed, please see log output above")
+        raise CMSAOIError() from err
 
     if args.only_build:
         return 0
@@ -237,9 +223,20 @@ def main_run(args):
     return 0
 
 
+def filename_to_langname(contest, filename):
+    from cms.grading.languagemanager import LANGUAGES
+    ext_index = filename.rfind(".")
+    if ext_index == -1:
+        return None
+    ext = filename[ext_index:]
+    names = sorted(l.name
+                   for l in LANGUAGES
+                   if ext in l.source_extensions and l.name in contest.languages)
+    return None if len(names) == 0 else names[0]
+
+
 def run_test_submissions(args, config, put_file):
     from cms.db import SessionGen, Task, Participation, User, Submission, File, SubmissionResult
-    from cms.grading.languagemanager import filename_to_language
     from cms import ServiceCoord
     from cms.io import RemoteServiceClient
 
@@ -271,7 +268,8 @@ def run_test_submissions(args, config, put_file):
         for path, points in config[CONF_TEST_SUBMISSIONS].items():
             digest = put_file(path, f"Test submission file {path} for {name}")
             comment = f"Test {Path(path).name} for {points}P"
-            submission = Submission(timestamp=datetime.utcnow(), language=filename_to_language(path).name,
+            lang = filename_to_langname(task.contest, path)
+            submission = Submission(timestamp=datetime.utcnow(), language=lang,
                                     participation=participation, task=task, comment=comment)
             session.add(File(filename=f'{task.name}.%l', digest=digest, submission=submission))
             session.add(submission)
@@ -361,30 +359,41 @@ def commit_task(task, contest_id):
 def lookup_friendly_filename(all_rules, fname):
     path = Path(fname).absolute()
     if path in all_rules:
-        return all_rules[path].name
+        r = all_rules[path]
+        if hasattr(r, 'friendly_name'):
+            return r.friendly_name
+        return str(r)
     return fname
 
 
-def find_rules(config):
-    all_rules: Dict[Path, Rule] = {}
+def patch_pth():
+    # Ugly way to patch the .pth file into site-packages
+    site_packages = Path([x for x in sys.path if 'site-packages' in x][-1])
+    target = site_packages / 'cmsaoi.pth'
+    if target.exists():
+        return
+    target.write_text("import os;'CMS_AOI_SEED' in os.environ and __import__('random').seed(int(os.environ['CMS_AOI_SEED']))")
 
-    def register_rule(rule: Rule):
-        outfile = rule.output_file.absolute()
-        all_rules[outfile] = rule
-        for dep in rule.dependencies:
+
+def find_rules(config):
+    all_rules: Dict[Path, rule.NinjaRule] = {}
+
+    def register_rule(rule_: rule.NinjaRule):
+        outfile = rule_.output.absolute()
+        all_rules[outfile] = rule_
+        for dep in rule_.extra_rules:
             # Add dependencies to all_rules table too
             register_rule(dep)
         return str(outfile.relative_to(core.task_dir))
 
-    def visit_item(value):
+    def visit_item(value, path):
         if isinstance(value, AOITag):
-            # Replace with output file path
-            name = f'{value.tag} {value.value}'.replace('\n', ' ')[:32]
+            rule.base_directory.set(value.base_directory)
+            rule.path_in_config.set(path)
+            rule_ = value.rule_type(value.value)
+            rule_.friendly_name = f'{value.tag} {value.value}'.replace('\n', '')[:32]
 
-            rule = value.rule_type(value.value, run_entropy=f'{len(all_rules)}',
-                                   base_directory=value.base_directory,
-                                   name=name)
-            return str(register_rule(rule))
+            return str(register_rule(rule_))
         return value
 
     # Recursively visit all parts of config to find all rules to be evaluated
@@ -393,30 +402,49 @@ def find_rules(config):
     if CONF_SAMPLE_SOLUTION in config:
         sample_solution = config[CONF_SAMPLE_SOLUTION]
         sample_sol_file = Path(sample_solution).absolute()
-        sample_sol_rule = all_rules[sample_sol_file]
         for i, subtask in enumerate(config[CONF_SUBTASKS], start=1):
             for j, testcase in enumerate(subtask[CONF_TESTCASES], start=1):
                 if CONF_OUTPUT in testcase:
                     # Output already exists
                     continue
                 inp = Path(testcase[CONF_INPUT]).absolute()
-                # Add sample solution program as dependency
-                deps = [sample_sol_rule]
-                if inp in all_rules:
-                    # Add input as dependency
-                    deps.append(all_rules[inp])
-                rule = ShellRule(str(Path(sample_sol_file)), stdin_file=inp,
-                                 dependencies=deps, base_directory=core.task_dir,
-                                 name=f'samplesol {i:02d}_{j:02d}')
-                testcase[CONF_OUTPUT] = register_rule(rule)
+                rule_ = rule.InternalSampleSolutionNinja(str(sample_sol_file), str(inp))
+                testcase[CONF_OUTPUT] = register_rule(rule_)
     else:
         for i, subtask in enumerate(config[CONF_SUBTASKS], start=1):
             for j, testcase in enumerate(subtask[CONF_TESTCASES], start=1):
                 if CONF_OUTPUT in testcase:
                     # Output already exists
                     continue
-                rule = EmptyRule(name=f"empty {i:02d}_{j:02d}")
-                testcase[CONF_OUTPUT] = register_rule(rule)
+                rule_ = rule.RawNinja('')
+                testcase[CONF_OUTPUT] = register_rule(rule_)
+
+    for i, subtask in enumerate(config[CONF_SUBTASKS], start=1):
+        for j, testcase in enumerate(subtask[CONF_TESTCASES], start=1):
+            result_in = core.result_dir / f'{i:02d}_{j:02d}.in'
+            result_out = core.result_dir / f'{i:02d}_{j:02d}.out'
+            
+            register_rule(rule.InternalCopyNinja(testcase[CONF_INPUT], result_in))
+            register_rule(rule.InternalCopyNinja(testcase[CONF_OUTPUT], result_out))
+
+            if CONF_TESTCASE_CHECKER in config:
+                tc_checker_file = Path(config[CONF_TESTCASE_CHECKER]).absolute()
+                register_rule(rule.InternalTestcaseCheckerNinja(
+                    str(tc_checker_file),
+                    str(result_in), i
+                ))
+
+    for lang, statement in config[CONF_STATEMENTS].items():
+        register_rule(rule.InternalCopyNinja(statement, core.result_dir / f'{lang}.pdf'))
+    for fname, attachment in config[CONF_ATTACHMENTS].items():
+        register_rule(rule.InternalCopyNinja(attachment, core.result_dir / fname))
+    if CONF_CHECKER in config:
+        register_rule(rule.InternalCopyNinja(config[CONF_CHECKER], core.result_dir / 'checker'))
+    for grader in config[CONF_GRADER]:
+        register_rule(rule.InternalCopyNinja(grader, core.result_dir / Path(grader).name))
+    if CONF_SAMPLE_SOLUTION in config:
+        register_rule(rule.InternalCopyNinja(config[CONF_SAMPLE_SOLUTION], core.result_dir / 'samplesol'))
+
     return all_rules, config
 
 

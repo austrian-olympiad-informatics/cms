@@ -21,6 +21,12 @@ def _is_copy_necessary(src: Path, dst: Path):
     return src.stat().st_mtime >= dst.stat().st_mtime
 
 
+def write_if_changed(content: str, dst: Path):
+    if dst.is_file() and dst.read_text() == content:
+        return
+    dst.write_text(content)
+
+
 def copy_if_necessary(src: Path, dst: Path):
     if not _is_copy_necessary(src, dst):
         return
