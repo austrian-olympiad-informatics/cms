@@ -2,8 +2,7 @@ from pathlib import Path
 
 import yaml
 
-from cmscontrib.aoi.rule import LatexCompileRule, CppCompileRule, CppRunRule, ShellRule, PyRunRule, PyinlineRule, \
-    RawRule, MakeRule, ZipRule, GunzipRule, UnzipRule, XZUnzipRule
+from cmscontrib.aoi.rule import registered_rules
 
 
 class AOITag:
@@ -20,20 +19,7 @@ def register_tag(tag, rule_type):
     yaml.SafeLoader.add_constructor(tag, on_tag)
 
 
-for tag, rule_type in {
-    '!latexcompile': LatexCompileRule,
-    '!cppcompile': CppCompileRule,
-    '!cpprun': CppRunRule,
-    '!shell': ShellRule,
-    '!pyrun': PyRunRule,
-    '!pyinline': PyinlineRule,
-    '!raw': RawRule,
-    '!make': MakeRule,
-    '!zip': ZipRule,
-    '!gunzip': GunzipRule,
-    '!unzip': UnzipRule,
-    '!xzunzip': XZUnzipRule,
-}.items():
+for tag, rule_type in registered_rules.items():
     register_tag(tag, rule_type)
 
 

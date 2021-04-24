@@ -1,379 +1,282 @@
 import logging
-import os
 import shlex
-import shutil
 import string
-import subprocess
-import gzip
-import lzma
-import zipfile
-from abc import ABC
 from pathlib import Path
-from typing import List, Optional, Union
-
-import jinja2
+from typing import List, Optional, Union, Dict
+import contextvars
+import hashlib
 
 from cmscontrib.aoi.const import CONF_INPUT_TEMPLATE, CONF_LATEX_CONFIG, CONF_CPP_CONFIG, CONF_GCC_ARGS, \
     CONF_ADDITIONAL_FILES, CONF_LATEXMK_ARGS
 from cmscontrib.aoi.core import core, CMSAOIError
 from cmscontrib.aoi.util import stable_hash, copytree, copy_if_necessary, expand_vars
+from cmscontrib.aoi.ninja_syntax import Writer
 
 _LOGGER = logging.getLogger(__name__)
 
+base_directory = contextvars.ContextVar('base directory')
+path_in_config = contextvars.ContextVar('Path in config')
 
-class Rule(ABC):
-    def __init__(self, *, input_files: List[Path] = None, output_extension: str = "",
-                 dependencies: List['Rule'] = None, entropy: Optional[str] = None,
-                 run_entropy: str = '', base_directory: Path = None, name: str = None):
-        assert input_files is not None
-        self.input_files = [base_directory / Path(x) for x in input_files]
-        self.dependencies = dependencies or []
+def default_output(arg: str, *, prefix: str = '', suffix: str = '', use_path: bool = True) -> Path:
+    allowed = string.digits + string.ascii_letters + '-_.'
+    arg_filtered = ''.join(c for c in arg.replace(' ', '_') if c in allowed)
+    fname = prefix + arg_filtered[:32] + stable_hash(arg + '$$$'.join(map(str, path_in_config.get()))) + suffix
+    return core.internal_dir / fname
 
-        input_filenames_s = [str(x) for x in self.input_files]
-        allowed = string.digits + string.ascii_letters + '-_.'
-        name_filtered = ''.join(c for c in name.replace(' ', '_') if c in allowed)
-        filename = name_filtered + '-' + stable_hash('|'.join(input_filenames_s) + entropy) + output_extension
-        self.output_file: Path = core.internal_dir / filename
-        self._has_run = False
-        self.name = name
+def gen_seed(arg: str) -> int:
+    h = hashlib.new('sha256')
+    h.update(arg.encode())
+    for p in path_in_config.get():
+        h.update(b'$$$')
+        h.update(str(p).encode())
+    return int.from_bytes(h.digest()[:4], 'big')
 
-    @property
-    def all_input_files(self):
-        ret = self.input_files.copy()
-        for dep in self.dependencies:
-            ret += dep.all_input_files
-        return ret
 
-    def is_up_to_date(self):
-        if not self.output_file.exists():
-            return False
-        out_mtime = self.output_file.stat().st_mtime
-        all_files = self.all_input_files
-        if not all_files:
-            # No input files, can't know if up to date or not
-            return False
-        for file in all_files:
-            if not file.exists():
-                # If the input file does not exist
-                return False
-            if file.stat().st_mtime > out_mtime:
-                return False
-        return True
-
-    def _execute(self):
+class NinjaRule:
+    RULE_NAME = None
+    def write_rule(self, writer: Writer) -> None:
         raise NotImplementedError
+    @classmethod
+    def write_build(cls, writer: Writer) -> None:
+        raise NotImplementedError
+    @property
+    def output(self) -> Path:
+        if hasattr(self, '_output'):
+            return self._output
+        raise NotImplementedError
+    @property
+    def extra_rules(self) -> List['NinjaRule']:
+        return []
 
-    def execute(self):
-        if self._has_run:
+
+registered_rules: Dict[str, NinjaRule] = {}
+
+def register_rule(name: str):
+    def decorator(klass):
+        assert klass not in registered_rules
+        registered_rules[name] = klass
+        return klass
+    return decorator
+
+@register_rule("!latexcompile")
+class LatexCompileNinja(NinjaRule):
+    RULE_NAME = 'latexcompile'
+    def __init__(self, arg: str) -> None:
+        self._tex_path = Path(arg)
+        self._output = self._tex_path.with_suffix('.pdf').absolute()
+
+    @classmethod
+    def write_rule(cls, writer: Writer) -> None:
+        cmd = 'SOURCE_DATE_EPOCH=0 latexmk -latexoption=-interaction=nonstopmode -pdf -cd $in'
+        writer.rule(cls.RULE_NAME, cmd)
+
+    def write_build(self, writer: Writer) -> None:
+        outputs = [str(self.output)]
+        inputs = [str(self._tex_path)]
+        writer.build(outputs, self.RULE_NAME, inputs)
+
+
+@register_rule("!cppcompile")
+class CppCompileNinja(NinjaRule):
+    RULE_NAME = 'cppcompile'
+
+    def __init__(self, arg: str) -> None:
+        self.inputs = []
+        self.extraflags = []
+        for x in shlex.split(arg):
+            p = Path(x)
+            if p.suffix in ('.h', '.cpp', '.c', '.cc'):
+                self.inputs.append(p)
+            else:
+                self.extraflags.append(x)
+        self._output = default_output(arg, prefix='cppcompile_', suffix='.exec', use_path=False)
+
+    @classmethod
+    def write_rule(cls, writer: Writer) -> None:
+        cppflags = core.config[CONF_CPP_CONFIG][CONF_GCC_ARGS]
+        writer.variable('cppflags', cppflags)
+        writer.variable('extracppflags', '')
+
+        cmd = 'g++ -MD -MF $out.d $cppflags $extracppflags $in -o $out'
+        writer.rule(cls.RULE_NAME, cmd, depfile='$out.d')
+
+    def write_build(self, writer: Writer) -> None:
+        outputs = [str(self.output)]
+        inputs = list(map(str, self.inputs))
+        variables = {}
+        if self.extraflags:
+            variables['extracppflags'] = ' '.join(self.extraflags)
+        writer.build(outputs, self.RULE_NAME, inputs, variables=variables)
+
+@register_rule("!cpprun")
+class CppRunNinja(NinjaRule):
+    RULE_NAME = 'cpprun'
+
+    def __init__(self, arg: str) -> None:
+        args = shlex.split(arg)
+        self._compile_rule = CppCompileNinja(args[0])
+        self._output = default_output(arg, prefix='cpprun_')
+        self._args = args[1:]
+        self._seed = gen_seed(arg)
+    
+    @classmethod
+    def write_rule(cls, writer: Writer) -> None:
+        cmd = 'CMS_AOI_SEED=$aoiseed $in $args >$out'
+        writer.rule(cls.RULE_NAME, cmd)
+    
+    def write_build(self, writer: Writer) -> None:
+        outputs = [str(self.output)]
+        inputs = [str(self._compile_rule.output)]
+        writer.build(outputs, self.RULE_NAME, inputs, variables={
+            'args': self._args,
+            'aoiseed': str(self._seed),
+        })
+
+    @property
+    def extra_rules(self) -> List['NinjaRule']:
+        return [self._compile_rule]
+
+
+@register_rule("!shell")
+class ShellNinja(NinjaRule):
+    RULE_NAME = 'shell'
+
+    def __init__(self, arg: str) -> None:
+        self._arg = shlex.split(arg)
+        self._output = default_output(arg, prefix='shell_')
+        self._inputs = [Path(x) for x in shlex.split(arg) if Path(x).is_file()]
+    
+    @classmethod
+    def write_rule(cls, writer: Writer) -> None:
+        cmd = '$args >$out'
+        writer.rule(cls.RULE_NAME, cmd)
+    
+    def write_build(self, writer: Writer) -> None:
+        outputs = [str(self.output)]
+        inputs = list(map(str, self._inputs))
+        writer.build(outputs, self.RULE_NAME, inputs, variables={
+            'args': self._arg
+        })
+
+@register_rule("!internal_sample_solution")
+class InternalSampleSolutionNinja(NinjaRule):
+    RULE_NAME = 'internal_sample_solution'
+
+    def __init__(self, sample_sol: str, stdin_file: str) -> None:
+        self._sample_sol = sample_sol
+        self._stdin_file = stdin_file
+        self._output = default_output(f'{sample_sol} {stdin_file}', prefix='samplesol_', use_path=False)
+    
+    @classmethod
+    def write_rule(cls, writer: Writer) -> None:
+        cmd = '$samplesol <$in >$out'
+        writer.rule(cls.RULE_NAME, cmd)
+    
+    def write_build(self, writer: Writer) -> None:
+        inputs = [self._stdin_file]
+        outputs = [str(self.output)]
+        writer.build(outputs, self.RULE_NAME, inputs, implicit=[self._sample_sol], variables={
+            'samplesol': self._sample_sol
+        })
+
+@register_rule("!internal_testcase_checker")
+class InternalTestcaseCheckerNinja(NinjaRule):
+    RULE_NAME = 'internal_testcase_checker'
+
+    def __init__(self, testcase_checker: str, stdin_file: str, subtask: int) -> None:
+        self._testcase_checker = testcase_checker
+        self._stdin_file = stdin_file
+        self._subtask = subtask
+        key = f'{testcase_checker} {stdin_file} {subtask}'
+        self._output = default_output(key, prefix='testcase_checker_', suffix='.empty', use_path=False)
+    
+    @classmethod
+    def write_rule(cls, writer: Writer) -> None:
+        cmd = '$testcasechecker $subtask <$in; touch $out'
+        writer.rule(cls.RULE_NAME, cmd)
+    
+    def write_build(self, writer: Writer) -> None:
+        inputs = [self._stdin_file]
+        outputs = [str(self.output)]
+        writer.build(outputs, self.RULE_NAME, inputs, implicit=[self._testcase_checker], variables={
+            'testcasechecker': self._testcase_checker,
+            'subtask': str(self._subtask),
+        })
+
+@register_rule("!pyrun")
+class PyRunNinja(NinjaRule):
+    RULE_NAME = 'pyrun'
+
+    def __init__(self, arg: str) -> None:
+        args = shlex.split(arg)
+        self._py_file = Path(args[0])
+        self._args = args[1:]
+        self._output = default_output(arg, prefix='pyrun_', suffix='.txt')
+        self._seed = gen_seed(arg)
+
+    @classmethod
+    def write_rule(cls, writer: Writer) -> None:
+        cmd = 'CMS_AOI_SEED=$aoiseed python3 $in $args >$out'
+        writer.rule(cls.RULE_NAME, cmd)
+    
+    def write_build(self, writer: Writer) -> None:
+        outputs = [str(self.output)]
+        inputs = [str(self._py_file)]
+        writer.build(outputs, self.RULE_NAME, inputs, variables={
+            'args': ' '.join(self._args),
+            'aoiseed': str(self._seed)
+        })
+
+@register_rule("!raw")
+class RawNinja(NinjaRule):
+    def __init__(self, arg: str) -> None:
+        self._output = default_output(arg, use_path=False, prefix='raw_', suffix='.txt')
+        self._arg = arg
+    
+    @classmethod
+    def write_rule(cls, writer: Writer) -> None:
+        pass
+
+    def write_build(self, writer: Writer) -> None:
+        if self._output.is_file() and self._output.read_text() == self._arg:
             return
-        for dep in self.dependencies:
-            dep.ensure()
-        input_max_mtime = 0
-        for m in self.input_files:
-            if not m.exists():
-                raise CMSAOIError(f"Input file {m} for task {self} does not exist!")
-            input_max_mtime = max(input_max_mtime, m.stat().st_mtime)
-
-        self._execute()
-
-        if not self.output_file.exists():
-            raise CMSAOIError(f"Task {self} did not produce output file {self.output_file}")
-        if input_max_mtime > 0:
-            # Set mtime on output file
-            os.utime(str(self.output_file), (self.output_file.stat().st_atime, input_max_mtime))
-        self._has_run = True
-
-    def ensure(self):
-        if not self.is_up_to_date():
-            self.execute()
+        self._output.write_text(self._arg)
 
 
-class CommandRule(Rule, ABC):
-    def __init__(self, *, command: List[str] = None,
-                 stdin_file: Optional[Path] = None, stdin_raw: Optional[bytes] = None,
-                 stdout_to_output: Optional[bool] = None, env = None,
-                 cwd = None,
-                 **kwargs):
-        assert command is not None
-        # Entropy is calculated before stdout magic
-        entropy = kwargs.pop('entropy', '') + ' '.join(command)
-        input_files = kwargs.pop('input_files')
-        stdin_file = stdin_file
-        if stdin_file:
-            stdin_file = kwargs['base_directory'] / Path(stdin_file)
-            entropy += str(stdin_file)
-            input_files.append(stdin_file)
-        if stdin_raw:
-            entropy += stable_hash(stdin_raw)
+@register_rule("!pyinline")
+class PyInlineNinja(NinjaRule):
+    RULE_NAME = 'pyinline'
 
-        super().__init__(entropy=entropy, input_files=input_files, **kwargs)
+    def __init__(self, arg: str) -> None:
+        self._raw_rule = RawNinja(arg)
+        self._run_rule = PyRunNinja(str(self._raw_rule.output))
+        self._output = self._run_rule.output
 
-        self.command = command
-        self.stdin_file = stdin_file
-        self.stdin_raw = stdin_raw
-        self.stdout_to_output = stdout_to_output or False
-        self._env = env
-        self._cwd = cwd
-
-    def pre_run(self):
+    @classmethod
+    def write_rule(cls, writer: Writer) -> None:
         pass
-
-    def post_run(self):
+    
+    def write_build(self, writer: Writer) -> None:
         pass
 
     @property
-    def command(self):
-        return self._command
-
-    @command.setter
-    def command(self, value):
-        env = {**os.environ, **{
-            'STDOUT': str(self.output_file),
-            'TASKDIR': str(core.task_dir),
-        }}
-        self._command = [expand_vars(x, env) for x in value]
-
-    def _open_stdin(self):
-        if self.stdin_file is not None:
-            return self.stdin_file.open("rb")
-        if self.stdin_raw is not None:
-            read, write = os.pipe()
-            os.write(write, self.stdin_raw)
-            os.close(write)
-            return read
-        return None
-
-    def _execute(self):
-        self.pre_run()
-        stdout = None
-        if self.stdout_to_output:
-            stdout = self.output_file.open('wb')
-        cmd_s = ' '.join(shlex.quote(x) for x in self.command)
-        if self.stdin_file:
-            cmd_s += f' <{self.stdin_file}'
-        if self.stdout_to_output:
-            cmd_s += f' >{self.output_file}'
-        _LOGGER.info("Executing %s", cmd_s)
-        stdin = self._open_stdin()
-        kwargs = {
-            'stdin': stdin,
-            'stdout': stdout,
-        }
-        if self._env is not None:
-            kwargs['env'] = self._env
-        if self._cwd is not None:
-            kwargs['cwd'] = str(self._cwd)
-        try:
-            subprocess.check_call(self.command, **kwargs)
-        except subprocess.CalledProcessError as err:
-            _LOGGER.error("Command %s failed, please view stderr logs above.", cmd_s)
-            _LOGGER.error(str(err))
-            if self.stdout_to_output:
-                os.unlink(str(self.output_file))
-            raise CMSAOIError(f"Failed to build {self.output_file}") from err
-        finally:
-            for fh in (stdin, stdout):
-                if isinstance(fh, int):
-                    os.close(fh)
-                elif fh is not None:
-                    fh.close()
-
-        self.post_run()
+    def extra_rules(self) -> List['NinjaRule']:
+        return [self._raw_rule, self._run_rule]
 
 
-class LatexCompileRule(CommandRule):
-    def __init__(self, args: str, **kwargs):
-        args: List[str] = shlex.split(args)
-        assert len(args) >= 1
+@register_rule("!zip")
+class ZipNinja(NinjaRule):
+    RULE_NAME = "zip"
 
-        base_directory = kwargs['base_directory']
-        latex_config = core.config[CONF_LATEX_CONFIG]
-        additional_files = latex_config[CONF_ADDITIONAL_FILES]
-        input_files = [base_directory / Path(x) for x in args] + list(map(Path, additional_files))
-        self._main_file = input_files[0]
-
-        command = shlex.split(latex_config[CONF_LATEXMK_ARGS])
-        compile_tex_file = (core.internal_build_dir / self._main_file.absolute().relative_to(core.task_dir)).absolute()
-        self._compile_tex_file = compile_tex_file
-        command.append(str(compile_tex_file))
-
-        self._pdf_file: Path = compile_tex_file.with_suffix('.pdf')
-
-        super().__init__(
-            input_files=input_files,
-            command=command,
-            output_extension='.pdf',
-            dependencies=[],
-            env={**os.environ, 'SOURCE_DATE_EPOCH': '0'},
-            cwd=compile_tex_file.parent,
-            **kwargs,
-        )
-
-    @property
-    def _main_rel(self):
-        """The main file relative to the task dir."""
-        return self._main_file.parent.absolute().relative_to(core.task_dir)
-
-    def pre_run(self):
-        for additional_file in core.latex_additional_files:
-            dst = (core.internal_build_dir / self._main_rel) / additional_file.name
-            copy_if_necessary(additional_file, dst)
-
-
-    def post_run(self):
-        shutil.copy(self._pdf_file, self.output_file)
-
-
-class CppCompileRule(CommandRule):
-    def __init__(self, args: str, **kwargs):
-        args = shlex.split(args)
-        # FIXME: Find better way to distinguish between GCC args and input files
-        input_files = [Path(x) for x in args]
-        input_files = [x for x in input_files if x.suffix in ('.h', '.cpp', '.c', '.cc')]
-        command = shlex.split(core.config[CONF_CPP_CONFIG][CONF_GCC_ARGS])
-        command += args
-        super().__init__(
-            input_files=input_files,
-            command=command,
-            **kwargs,
-        )
-
-
-class CppRunRule(CommandRule):
-    def __init__(self, args: str, **kwargs):
-        args = shlex.split(args)
-        assert len(args) >= 1
-        cpp_file = args[0]
-        name = kwargs.pop('name')
-        compile_rule = CppCompileRule(cpp_file, name='CppRunCompile', **kwargs)
-        command = [str(compile_rule.output_file), *args[1:]]
-        super().__init__(
-            input_files=[],
-            output_extension='.exec',
-            stdout_to_output=True,
-            dependencies=[compile_rule],
-            command=command,
-            name=name,
-            **kwargs
-        )
-
-
-class ShellRule(CommandRule):
-    def __init__(self, args: str, **kwargs):
-        args = shlex.split(args)
-        assert len(args) >= 1
-        input_files = []
-        p = Path(args[0])
-        if p.is_file():
-            input_files.append(p)
-        super().__init__(
-            input_files=input_files,
-            output_extension='.exec',
-            stdout_to_output=True,
-            command=args,
-            **kwargs
-        )
-
-
-PYTHON_PRE_PROG = """
-from random import seed as _aoi_seed
-_aoi_seed({})
-"""
-
-
-class PyRunRule(CommandRule):
-    def __init__(self, args: str, **kwargs):
-        args = shlex.split(args)
-        assert len(args) >= 1
-        py_file = Path(args[0])
-
-        run_entropy = kwargs['run_entropy']
-        content = PYTHON_PRE_PROG.format(run_entropy).encode()
-        content += py_file.read_bytes()
-
-        raw_rule = RawRule(content, **kwargs)
-        command = ['python3', str(raw_rule.output_file), *args[1:]]
-
-        super().__init__(
-            input_files=[py_file, raw_rule.output_file],
-            output_extension='.exec',
-            stdout_to_output=True,
-            command=command,
-            dependencies=[raw_rule],
-            **kwargs,
-        )
-
-
-class PyinlineRule(CommandRule):
-    def __init__(self, prog: str, **kwargs):
-        command = ['python3']
-        run_entropy = kwargs['run_entropy']
-        stdin = PYTHON_PRE_PROG.format(run_entropy).encode()
-        stdin += prog.encode()
-        entropy = kwargs.pop('entropy', '') + stable_hash(stdin)
-        super().__init__(
-            input_files=[],
-            output_extension='.exec',
-            stdout_to_output=True,
-            command=command,
-            stdin_raw=stdin,
-            entropy=entropy,
-            **kwargs,
-        )
-
-    def is_up_to_date(self):
-        return self.output_file.exists()
-
-
-class RawRule(Rule):
-    def __init__(self, content: Union[str, bytes], **kwargs):
-        entropy = stable_hash(content)
-        if isinstance(content, str):
-            content = content.encode()
-        self.content = content
-        super().__init__(
-            input_files=[],
-            output_extension=".raw",
-            entropy=entropy,
-            **kwargs,
-        )
-
-    def is_up_to_date(self):
-        return self.output_file.exists() and self.output_file.read_bytes() == self.content
-
-    def _execute(self):
-        self.output_file.write_bytes(self.content)
-
-
-class MakeRule(CommandRule):
-    def __init__(self, args: str, **kwargs):
-        parts = shlex.split(args)
-        if len(parts) != 1:
-            raise ValueError("Only one make target is supported at a time")
-        self._make_target = Path(parts[0])
-        super().__init__(
-            input_files=[],
-            output_extension=self._make_target.suffix,
-            **kwargs,
-        )
-
-    def post_run(self):
-        if not self._make_target.is_file():
-            raise CMSAOIError(f"Make rule did not produce target {self._make_target}")
-        copy_if_necessary(self._make_target, self.output_file)
-
-
-class ZipRule(Rule):
-    def __init__(self, args: str, **kwargs):
-        self._members = []
-        input_files = []
-        for arg in shlex.split(args):
+    def __init__(self, arg: str) -> None:
+        self._input_files = []
+        self._prog_args = []
+        for arg in shlex.split(arg):
             if '*' in arg:
                 assert '=' not in arg
                 for p in Path.cwd().glob(arg):
-                    zipname = p.name
-                    self._members.append((p.name, p))
-                    input_files.append(p)
+                    self._prog_args.append(f'{p.name}={p}')
+                    self._input_files.append(p)
                 continue
 
             if '=' in arg:
@@ -382,81 +285,71 @@ class ZipRule(Rule):
                 zipname = Path(arg).name
                 pathname = arg
             path = Path(pathname)
-            self._members.append((zipname, path))
-            input_files.append(path)
-
-        super().__init__(
-            input_files=input_files,
-            output_extension='.zip',
-            entropy=kwargs.pop('entropy', ''),
-            **kwargs,
-        )
-
-    def _execute(self):
-        with zipfile.ZipFile(self.output_file, 'w') as zipf:
-            for zipname, path in self._members:
-                zipf.writestr(zipname, path.read_bytes())
-
-
-class GunzipRule(Rule):
-    def __init__(self, path: str, **kwargs):
-        self._gzip_file = Path(path)
-        super().__init__(
-            input_files=[self._gzip_file],
-            output_extension=''.join(self._gzip_file.suffixes[:-1]),
-            entropy=kwargs.pop('entropy', ''),
-            **kwargs,
-        )
-
-    def _execute(self):
-        with gzip.GzipFile(self._gzip_file, 'rb') as ifh:
-            with self.output_file.open('wb') as ofh:
-                shutil.copyfileobj(ifh, ofh)
+            self._prog_args.append(f'{zipname}={path}')
+            self._input_files.append(path)
+        self._output = default_output(arg, prefix='zip_', suffix='.zip', use_path=False)
+    
+    @classmethod
+    def write_rule(cls, writer: Writer) -> None:
+        cmd = '_cmsAOIzip $out $members'
+        writer.rule(cls.RULE_NAME, cmd)
+    
+    def write_build(self, writer: Writer) -> None:
+        outputs = [str(self.output)]
+        inputs = list(map(str, self._input_files))
+        writer.build(outputs, self.RULE_NAME, inputs, variables={
+            'members': ' '.join(shlex.quote(x) for x in self._prog_args)
+        })
 
 
-class XZUnzipRule(Rule):
-    def __init__(self, path: str, **kwargs):
-        self._xz_file = Path(path)
-        super().__init__(
-            input_files=[self._xz_file],
-            output_extension=''.join(self._xz_file.suffixes[:-1]),
-            entropy=kwargs.pop('entropy', ''),
-            **kwargs,
-        )
+@register_rule("!gunzip")
+class GunzipNinja(NinjaRule):
+    RULE_NAME = "gunzip"
+    def __init__(self, arg: str) -> None:
+        self._arg = arg
+        self._output = default_output(arg, prefix='gunzip_', suffix='.txt', use_path=False)
 
-    def _execute(self):
-        with lzma.LZMAFile(self._xz_file, 'rb') as ifh:
-            with self.output_file.open('wb') as ofh:
-                shutil.copyfileobj(ifh, ofh)
+    @classmethod
+    def write_rule(cls, writer: Writer) -> None:
+        cmd = 'gzip -d <$in >$out'
+        writer.rule(cls.RULE_NAME, cmd)
+    
+    def write_build(self, writer: Writer) -> None:
+        outputs = [str(self.output)]
+        inputs = [self._arg]
+        writer.build(outputs, self.RULE_NAME, inputs)
 
+@register_rule("!xzunzip")
+class XZUnzipNinja(NinjaRule):
+    RULE_NAME = "xzunzip"
+    def __init__(self, arg: str) -> None:
+        self._arg = arg
+        self._output = default_output(arg, prefix='xzunzip_', suffix='.txt', use_path=False)
 
-class UnzipRule(Rule):
-    def __init__(self, args: str, **kwargs):
-        zipfile, filename = shlex.split(args)
-        self._zip_file = Path(zipfile)
-        self._extract_filename = filename
+    @classmethod
+    def write_rule(cls, writer: Writer) -> None:
+        cmd = 'xz -d <$in >$out'
+        writer.rule(cls.RULE_NAME, cmd)
+    
+    def write_build(self, writer: Writer) -> None:
+        outputs = [str(self.output)]
+        inputs = [self._arg]
+        writer.build(outputs, self.RULE_NAME, inputs)
 
-        super().__init__(
-            input_files=[self._zip_file],
-            output_extension=Path(filename).suffix,
-            entropy=kwargs.pop('entropy', ''),
-            **kwargs,
-        )
+@register_rule("!internal_copy")
+class InternalCopyNinja(NinjaRule):
+    RULE_NAME = "internal_copy"
+    def __init__(self, src: Union[str, Path], dst: Union[str, Path]) -> None:
+        self._src = str(Path(src).absolute())
+        self._dst = str(Path(dst).absolute())
+        self._output = Path(self._dst)
 
-    def _execute(self):
-        with zipfile.ZipFile(self._zip_file, 'r') as zipf:
-            with zipf.open(self._extract_filename, 'r') as ifh:
-                with self.output_file.open('wb') as ofh:
-                    shutil.copyfileobj(ifh, ofh)
-
-
-class EmptyRule(Rule):
-    def __init__(self, **kwargs):
-        super().__init__(
-            input_files=[],
-            entropy=kwargs.pop('entropy', ''),
-            **kwargs,
-        )
-
-    def _execute(self):
-        self.output_file.write_bytes(b'')
+    @classmethod
+    def write_rule(cls, writer: Writer) -> None:
+        cmd = 'cp $in $out'
+        writer.rule(cls.RULE_NAME, cmd)
+    
+    def write_build(self, writer: Writer) -> None:
+        outputs = [self._dst]
+        inputs = [self._src]
+        writer.build(outputs, self.RULE_NAME, inputs)

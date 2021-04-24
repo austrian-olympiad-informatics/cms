@@ -169,7 +169,8 @@ setup(
             "cmsRemoveUser=cmscontrib.RemoveUser:main",
             "cmsSpoolExporter=cmscontrib.SpoolExporter:main",
             "cmsMake=cmstaskenv.cmsMake:main",
-            "cmsAOI=cmscontrib.aoi.__main__:main"
+            "cmsAOI=cmscontrib.aoi.__main__:main",
+            "_cmsAOIzip=cmscontrib.aoi.zipprog:main",
         ],
         "cms.grading.tasktypes": [
             "Batch=cms.grading.tasktypes.Batch:Batch",

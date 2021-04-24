@@ -12,7 +12,7 @@ from cmscontrib.aoi.const import CONF_NAME, CONF_LONG_NAME, CONF_AUTHOR, CONF_AT
     CONF_INPUT_TEMPLATE, CONF_PUBLIC, CONF_TOKENS, CONF_MAX_NUMBER, CONF_INITIAL, CONF_GEN_NUMBER, TOKEN_MODES, \
     CONF_NUM_PROCESSES, CONF_MANAGER, CONF_CODENAME, CONF_TESTCASE_CHECKER
 from cmscontrib.aoi.yaml_loader import AOITag
-from cmscontrib.aoi.rule import GunzipRule, UnzipRule, XZUnzipRule
+from cmscontrib.aoi import rule
 
 
 def validate_file(value):
@@ -35,15 +35,16 @@ def validate_file_autoextract(value):
     if not suffixes:
         return value
     if '.gz' == suffixes[-1]:
-        return AOITag(Path.cwd(), '!gunzip', GunzipRule, value)
+        return AOITag(Path.cwd(), '!gunzip', rule.GunzipNinja, value)
     if '.xz' == suffixes[-1]:
-        return AOITag(Path.cwd(), '!xzunzip', XZUnzipRule, value)
+        return AOITag(Path.cwd(), '!xzunzip', rule.XZUnzipNinja, value)
     if '.zip' == suffixes[-1]:
         ret = []
         with zipfile.ZipFile(Path(value), 'r') as zipf:
             for info in zipf.infolist():
                 if info.is_dir() or Path(info.filename).name.startswith('.'):
                     continue
+                # TODO
                 ret.append(AOITag(Path.cwd(), '!unzip', UnzipRule,
                            shlex.join([value, info.filename])))
         return ret
@@ -177,7 +178,7 @@ CONFIG_SCHEMA = vol.Schema({
     },
 
     vol.Optional(CONF_CPP_CONFIG, default={}): {
-        vol.Optional(CONF_GCC_ARGS, default='g++ -O2 -std=gnu++11 -pipe -static -s -Wno-unused-result -o $STDOUT'): string,
+        vol.Optional(CONF_GCC_ARGS, default='-O2 -std=gnu++11 -static -s'): string,
     },
     vol.Optional(CONF_LATEX_CONFIG, default={}): {
         vol.Optional(CONF_LATEXMK_ARGS, default='latexmk -latexoption=-interaction=nonstopmode -pdf -cd'): string,
