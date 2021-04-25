@@ -20,7 +20,10 @@ path_in_config = contextvars.ContextVar('Path in config')
 def default_output(arg: str, *, prefix: str = '', suffix: str = '', use_path: bool = True) -> Path:
     allowed = string.digits + string.ascii_letters + '-_.'
     arg_filtered = ''.join(c for c in arg.replace(' ', '_') if c in allowed)
-    fname = prefix + arg_filtered[:32] + stable_hash(arg + '$$$'.join(map(str, path_in_config.get()))) + suffix
+    hash_arg = arg
+    if use_path:
+        hash_arg += '$$$'.join(map(str, path_in_config.get()))
+    fname = prefix + arg_filtered[:32] + stable_hash(hash_arg) + suffix
     return core.internal_dir / fname
 
 def gen_seed(arg: str) -> int:
