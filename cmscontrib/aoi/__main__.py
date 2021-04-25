@@ -269,6 +269,7 @@ def run_test_submissions(args, config, put_file):
             digest = put_file(path, f"Test submission file {path} for {name}")
             comment = f"Test {Path(path).name} for {points}P"
             lang = filename_to_langname(task.contest, path)
+            assert lang is not None
             submission = Submission(timestamp=datetime.utcnow(), language=lang,
                                     participation=participation, task=task, comment=comment)
             session.add(File(filename=f'{task.name}.%l', digest=digest, submission=submission))

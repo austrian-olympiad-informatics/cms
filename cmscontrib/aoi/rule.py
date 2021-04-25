@@ -70,7 +70,7 @@ class LatexCompileNinja(NinjaRule):
 
     @classmethod
     def write_rule(cls, writer: Writer) -> None:
-        cmd = 'SOURCE_DATE_EPOCH=0 latexmk -latexoption=-interaction=nonstopmode -pdf -cd $in'
+        cmd = 'cd $$(dirname $in); SOURCE_DATE_EPOCH=0 latexmk -latexoption=-interaction=nonstopmode -pdf $$(basename $in)'
         writer.rule(cls.RULE_NAME, cmd)
 
     def write_build(self, writer: Writer) -> None:
