@@ -422,8 +422,9 @@ def find_rules(config):
 
     for i, subtask in enumerate(config[CONF_SUBTASKS], start=1):
         for j, testcase in enumerate(subtask[CONF_TESTCASES], start=1):
-            result_in = core.result_dir / f'{i:02d}_{j:02d}.in'
-            result_out = core.result_dir / f'{i:02d}_{j:02d}.out'
+            tc_name = f'{i:02d}_{j:02d}'
+            result_in = core.result_dir / f'{tc_name}.in'
+            result_out = core.result_dir / f'{tc_name}.out'
             
             register_rule(rule.InternalCopyNinja(testcase[CONF_INPUT], result_in))
             register_rule(rule.InternalCopyNinja(testcase[CONF_OUTPUT], result_out))
@@ -432,7 +433,8 @@ def find_rules(config):
                 tc_checker_file = Path(config[CONF_TESTCASE_CHECKER]).absolute()
                 register_rule(rule.InternalTestcaseCheckerNinja(
                     str(tc_checker_file),
-                    str(result_in), i
+                    str(result_in), i,
+                    tc_name
                 ))
 
     for lang, statement in config[CONF_STATEMENTS].items():

@@ -71,7 +71,8 @@ class LatexCompileNinja(NinjaRule):
     @classmethod
     def write_rule(cls, writer: Writer) -> None:
         cmd = 'cd $$(dirname $in); SOURCE_DATE_EPOCH=0 latexmk -latexoption=-interaction=nonstopmode -pdf $$(basename $in)'
-        writer.rule(cls.RULE_NAME, cmd)
+        desc = '!latexcompile $in'
+        writer.rule(cls.RULE_NAME, cmd, description=desc)
 
     def write_build(self, writer: Writer) -> None:
         outputs = [str(self.output)]
@@ -101,7 +102,8 @@ class CppCompileNinja(NinjaRule):
         writer.variable('extracppflags', '')
 
         cmd = 'g++ -MD -MF $out.d $cppflags $extracppflags $in -o $out'
-        writer.rule(cls.RULE_NAME, cmd, depfile='$out.d')
+        desc = '!cppcompile $extracppflags $in'
+        writer.rule(cls.RULE_NAME, cmd, depfile='$out.d', description=desc)
 
     def write_build(self, writer: Writer) -> None:
         outputs = [str(self.output)]
@@ -125,7 +127,8 @@ class CppRunNinja(NinjaRule):
     @classmethod
     def write_rule(cls, writer: Writer) -> None:
         cmd = 'CMS_AOI_SEED=$aoiseed $in $args >$out'
-        writer.rule(cls.RULE_NAME, cmd)
+        desc = "!cpprun $in $args"
+        writer.rule(cls.RULE_NAME, cmd, description=desc)
     
     def write_build(self, writer: Writer) -> None:
         outputs = [str(self.output)]
@@ -152,7 +155,8 @@ class ShellNinja(NinjaRule):
     @classmethod
     def write_rule(cls, writer: Writer) -> None:
         cmd = '$args >$out'
-        writer.rule(cls.RULE_NAME, cmd)
+        desc = "!shell $args"
+        writer.rule(cls.RULE_NAME, cmd, description=desc)
     
     def write_build(self, writer: Writer) -> None:
         outputs = [str(self.output)]
@@ -173,7 +177,8 @@ class InternalSampleSolutionNinja(NinjaRule):
     @classmethod
     def write_rule(cls, writer: Writer) -> None:
         cmd = '$samplesol <$in >$out'
-        writer.rule(cls.RULE_NAME, cmd)
+        desc = "!samplesol $in"
+        writer.rule(cls.RULE_NAME, cmd, description=desc)
     
     def write_build(self, writer: Writer) -> None:
         inputs = [self._stdin_file]
@@ -186,17 +191,19 @@ class InternalSampleSolutionNinja(NinjaRule):
 class InternalTestcaseCheckerNinja(NinjaRule):
     RULE_NAME = 'internal_testcase_checker'
 
-    def __init__(self, testcase_checker: str, stdin_file: str, subtask: int) -> None:
+    def __init__(self, testcase_checker: str, stdin_file: str, subtask: int, friendly_name: str) -> None:
         self._testcase_checker = testcase_checker
         self._stdin_file = stdin_file
         self._subtask = subtask
         key = f'{testcase_checker} {stdin_file} {subtask}'
         self._output = default_output(key, prefix='testcase_checker_', suffix='.empty', use_path=False)
+        self._friendly_name = friendly_name
     
     @classmethod
     def write_rule(cls, writer: Writer) -> None:
-        cmd = '$testcasechecker $subtask <$in; touch $out'
-        writer.rule(cls.RULE_NAME, cmd)
+        cmd = '$testcasechecker $subtask <$in && touch $out'
+        desc = "!testcase_checker $friendlyname"
+        writer.rule(cls.RULE_NAME, cmd, description=desc)
     
     def write_build(self, writer: Writer) -> None:
         inputs = [self._stdin_file]
@@ -204,6 +211,7 @@ class InternalTestcaseCheckerNinja(NinjaRule):
         writer.build(outputs, self.RULE_NAME, inputs, implicit=[self._testcase_checker], variables={
             'testcasechecker': self._testcase_checker,
             'subtask': str(self._subtask),
+            'friendlyname': self._friendly_name,
         })
 
 @register_rule("!pyrun")
@@ -220,7 +228,8 @@ class PyRunNinja(NinjaRule):
     @classmethod
     def write_rule(cls, writer: Writer) -> None:
         cmd = 'CMS_AOI_SEED=$aoiseed python3 $in $args >$out'
-        writer.rule(cls.RULE_NAME, cmd)
+        desc = "!pyrun $in $args"
+        writer.rule(cls.RULE_NAME, cmd, description=desc)
     
     def write_build(self, writer: Writer) -> None:
         outputs = [str(self.output)]
@@ -291,17 +300,20 @@ class ZipNinja(NinjaRule):
             self._prog_args.append(f'{zipname}={path}')
             self._input_files.append(path)
         self._output = default_output(arg, prefix='zip_', suffix='.zip', use_path=False)
+        self._arg = arg
     
     @classmethod
     def write_rule(cls, writer: Writer) -> None:
         cmd = '_cmsAOIzip $out $members'
-        writer.rule(cls.RULE_NAME, cmd)
+        desc = "!zip $arg"
+        writer.rule(cls.RULE_NAME, cmd, description=desc)
     
     def write_build(self, writer: Writer) -> None:
         outputs = [str(self.output)]
         inputs = list(map(str, self._input_files))
         writer.build(outputs, self.RULE_NAME, inputs, variables={
-            'members': ' '.join(shlex.quote(x) for x in self._prog_args)
+            'members': ' '.join(shlex.quote(x) for x in self._prog_args),
+            'arg': self._arg,
         })
 
 
@@ -315,7 +327,8 @@ class GunzipNinja(NinjaRule):
     @classmethod
     def write_rule(cls, writer: Writer) -> None:
         cmd = 'gzip -d <$in >$out'
-        writer.rule(cls.RULE_NAME, cmd)
+        desc = "!gunzip $in"
+        writer.rule(cls.RULE_NAME, cmd, description=desc)
     
     def write_build(self, writer: Writer) -> None:
         outputs = [str(self.output)]
@@ -332,7 +345,8 @@ class XZUnzipNinja(NinjaRule):
     @classmethod
     def write_rule(cls, writer: Writer) -> None:
         cmd = 'xz -d <$in >$out'
-        writer.rule(cls.RULE_NAME, cmd)
+        desc = "!xzunzip $in"
+        writer.rule(cls.RULE_NAME, cmd, description=desc)
     
     def write_build(self, writer: Writer) -> None:
         outputs = [str(self.output)]
@@ -350,7 +364,8 @@ class InternalCopyNinja(NinjaRule):
     @classmethod
     def write_rule(cls, writer: Writer) -> None:
         cmd = 'cp $in $out'
-        writer.rule(cls.RULE_NAME, cmd)
+        desc = "!copy $in $out"
+        writer.rule(cls.RULE_NAME, cmd, description=desc)
     
     def write_build(self, writer: Writer) -> None:
         outputs = [self._dst]
