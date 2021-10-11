@@ -35,6 +35,11 @@ from setuptools import setup, find_packages
 from setuptools.command.build_py import build_py
 
 
+here = os.path.abspath(os.path.dirname(__file__))
+
+with open(os.path.join(here, "requirements.txt")) as requirements_txt:
+    REQUIRES = requirements_txt.read().splitlines()
+
 PACKAGE_DATA = {
     "cms.server": [
         "static/*.*",
@@ -211,5 +216,7 @@ setup(
         "Programming Language :: Python :: 3.8",
         "License :: OSI Approved :: "
         "GNU Affero General Public License v3",
-    ]
+    ],
+    python_requires=">=3.7,<4.0",
+    install_requires=REQUIRES,
 )

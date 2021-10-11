@@ -74,7 +74,7 @@ class Worker(Service):
         start = time.time()
         for digest in files:
             try:
-                self.file_cacher.load(digest, if_needed=True)
+                self.file_cacher.cache_file(digest)
             except KeyError:
                 pass
         logger.info("Precaching finished after %.1f seconds.", time.time() - start)
