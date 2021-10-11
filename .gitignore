@@ -12,3 +12,4 @@ cache/
 lib/
 log/
 /.idea/
+.vscode
