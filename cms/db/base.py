@@ -23,8 +23,9 @@ import ipaddress
 from datetime import datetime, timedelta
 
 from sqlalchemy.dialects.postgresql import ARRAY, CIDR, JSONB, OID
+from sqlalchemy.ext.declarative import as_declarative
 from sqlalchemy.orm import \
-    class_mapper, object_mapper, ColumnProperty, RelationshipProperty, registry
+    class_mapper, object_mapper, ColumnProperty, RelationshipProperty
 from sqlalchemy.orm.exc import ObjectDeletedError
 from sqlalchemy.orm.session import object_session
 from sqlalchemy.types import \
@@ -57,9 +58,7 @@ _TYPE_MAP = {
     JSONB: object,
 }
 
-_reg = registry(_bind=engine, metadata=metadata, constructor=None)
-
-@_reg.as_declarative_base()
+@as_declarative(bind=engine, metadata=metadata, constructor=None)
 class Base:
     """Base class for all classes managed by SQLAlchemy. Extending the
     base class given by SQLAlchemy.
