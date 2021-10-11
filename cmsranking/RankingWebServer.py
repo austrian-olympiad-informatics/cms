@@ -33,9 +33,8 @@ from werkzeug.exceptions import HTTPException, BadRequest, Unauthorized, \
     Forbidden, NotFound, NotAcceptable, UnsupportedMediaType
 from werkzeug.routing import Map, Rule
 from werkzeug.wrappers import Request, Response
-from werkzeug.wsgi import responder, wrap_file
-from werkzeug.middleware.dispatcher import DispatcherMiddleware
-from werkzeug.middleware.shared_data import SharedDataMiddleware
+from werkzeug.wsgi import responder, wrap_file, SharedDataMiddleware, \
+    DispatcherMiddleware
 
 # Needed for initialization. Do not remove.
 import cmsranking.Logger  # noqa
