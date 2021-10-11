@@ -40,7 +40,7 @@
 from datetime import datetime
 import logging
 
-from werkzeug.middleware.shared_data import SharedDataMiddlewareSharedDataMiddleware
+from werkzeug.middleware.shared_data import SharedDataMiddleware
 
 from cms import ConfigError, ServiceCoord, config
 from cms.io import WebService
