@@ -19,7 +19,7 @@
 
 import json
 
-from werkzeug.contrib.securecookie import SecureCookie
+from secure_cookie.cookie import SecureCookie
 from werkzeug.local import Local, LocalManager
 from werkzeug.wrappers import Request, Response
 

@@ -26,8 +26,9 @@ try:
 except ImportError:
     import tornado.wsgi as tornado_wsgi
 from gevent.pywsgi import WSGIServer
-from werkzeug.contrib.fixers import ProxyFix
-from werkzeug.wsgi import DispatcherMiddleware, SharedDataMiddleware
+from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.middleware.dispatcher import DispatcherMiddleware
+from werkzeug.middleware.shared_data import SharedDataMiddleware
 
 from cms.db.filecacher import FileCacher
 from cms.server.file_middleware import FileServerMiddleware

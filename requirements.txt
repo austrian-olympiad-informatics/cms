@@ -7,7 +7,7 @@ psutil==5.8.0
 requests==2.26.0
 gevent==21.8.0
 greenlet==1.1.2
-werkzeug==0.16.1
+werkzeug==2.0.2
 patool==1.12
 bcrypt==3.2.0
 chardet==4.0.0
@@ -17,3 +17,4 @@ Jinja2==3.0.2
 colorlog==6.5.0
 pyyaml==5.4.1
 voluptuous==0.12.2
+secure-cookie==0.2.0
