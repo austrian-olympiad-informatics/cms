@@ -929,6 +929,11 @@ class IsolateSandbox(SandboxBase):
         if config.chroot_base_image is None:
             self.maybe_add_mapped_directory("/etc/alternatives")
 
+        # Likewise, needed by C# programs. The Mono runtime looks in
+        # /etc/mono/config to obtain the default DllMap, which includes, in
+        # particular, the System.Native assembly.
+        self.maybe_add_mapped_directory("/etc/mono", options="noexec")
+
         # Tell isolate to get the sandbox ready. We do our best to cleanup
         # after ourselves, but we might have missed something if a previous
         # worker was interrupted in the middle of an execution, so we issue an
@@ -1420,11 +1425,11 @@ class IsolateSandbox(SandboxBase):
             [self.box_exec]
             + (["--cg"] if self.cgroup else [])
             + ["--box-id=%d" % self.box_id, "--init"])
-        ret = subprocess.call(init_cmd)
-        if ret != 0:
+        try:
+            subprocess.check_call(init_cmd)
+        except subprocess.CalledProcessError as e:
             raise SandboxInterfaceException(
-                "Failed to initialize sandbox with command: %s "
-                "(error %d)" % (pretty_print_cmdline(init_cmd), ret))
+                "Failed to initialize sandbox") from e
 
     def cleanup(self, delete=False):
         """See Sandbox.cleanup()."""
@@ -1440,6 +1445,7 @@ class IsolateSandbox(SandboxBase):
             + ["--box-id=%d" % self.box_id]
 
         if delete:
+            # Ignore exit status as some files may be owned by our user
             subprocess.call(
                 exe + [
                     "--dir=%s=%s:rw" % (self._home_dest, self._home),
@@ -1448,8 +1454,9 @@ class IsolateSandbox(SandboxBase):
                 stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
 
         # Tell isolate to cleanup the sandbox.
-        subprocess.call(exe + ["--cleanup"],
-                        stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+        subprocess.check_call(
+            exe + ["--cleanup"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
 
         if delete:
             logger.debug("Deleting sandbox in %s.", self._outer_dir)
