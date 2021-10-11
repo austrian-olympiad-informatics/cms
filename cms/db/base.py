@@ -24,8 +24,9 @@ from datetime import datetime, timedelta
 import typing
 
 from sqlalchemy.dialects.postgresql import ARRAY, CIDR, JSONB, OID
+from sqlalchemy.ext.declarative import as_declarative
 from sqlalchemy.orm import \
-    class_mapper, object_mapper, ColumnProperty, RelationshipProperty, registry
+    class_mapper, object_mapper, ColumnProperty, RelationshipProperty
 from sqlalchemy.orm.exc import ObjectDeletedError
 from sqlalchemy.orm.session import object_session
 from sqlalchemy.types import \
