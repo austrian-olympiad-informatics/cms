@@ -23,7 +23,7 @@ import os
 from cms.grading import CompiledLanguage
 
 
-__all__ = ["Python3PyPy"]
+__all__ = ["Python2CPython"]
 
 
 class Python3PyPy(CompiledLanguage):
@@ -38,7 +38,7 @@ class Python3PyPy(CompiledLanguage):
     @property
     def name(self):
         """See Language.name."""
-        return "Python 3 / PyPy"
+        return "Python 2 / CPython"
 
     @property
     def source_extensions(self):
@@ -58,7 +58,7 @@ class Python3PyPy(CompiledLanguage):
 
         commands = []
         files_to_package = []
-        commands.append(["/usr/bin/pypy3", "-m", "compileall", "-b", "."])
+        commands.append(["/usr/bin/python2", "-m", "compileall", "."])
         for idx, source_filename in enumerate(source_filenames):
             basename = os.path.splitext(os.path.basename(source_filename))[0]
             pyc_filename = "%s.pyc" % basename
@@ -78,4 +78,4 @@ class Python3PyPy(CompiledLanguage):
             self, executable_filename, main=None, args=None):
         """See Language.get_evaluation_commands."""
         args = args if args is not None else []
-        return [["/usr/bin/pypy3", executable_filename] + args]
+        return [["/usr/bin/python2", executable_filename] + args]
