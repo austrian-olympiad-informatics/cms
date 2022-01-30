@@ -18,3 +18,4 @@ colorlog==6.5.0
 pyyaml==5.4.1
 voluptuous==0.12.2
 secure-cookie==0.2.0
+beautifulsoup4

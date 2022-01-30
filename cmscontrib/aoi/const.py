@@ -14,6 +14,7 @@ SCORE_TYPES = {
 }
 TASK_TYPES = {
     'BATCH': 'Batch',
+    'OJUZ': 'Ojuz',
     'OUTPUT_ONLY': 'OutputOnly',
     'COMMUNICATION': 'Communication',
 }
@@ -36,6 +37,7 @@ CONF_SCORE_OPTIONS = 'score_options'
 CONF_DECIMAL_PLACES = 'decimal_places'
 CONF_MODE = 'mode'
 CONF_TYPE = 'type'
+CONF_OJUZ_KEY = "ojuz_key"
 CONF_TIME_LIMIT = 'time_limit'
 CONF_MEMORY_LIMIT = 'memory_limit'
 CONF_SAMPLE_SOLUTION = 'sample_solution'
