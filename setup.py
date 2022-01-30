@@ -145,6 +145,7 @@ setup(
         "console_scripts": [
             "cmsRunFunctionalTests=cmstestsuite.RunFunctionalTests:main",
             "cmsAddAdmin=cmscontrib.AddAdmin:main",
+            "cmsOJUZGen=cmscontrib.ojuzgen:main",
             "cmsAddParticipation=cmscontrib.AddParticipation:main",
             "cmsAddStatement=cmscontrib.AddStatement:main",
             "cmsAddSubmission=cmscontrib.AddSubmission:main",

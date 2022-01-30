@@ -3,13 +3,9 @@ import argparse
 import tempfile
 import shutil
 import subprocess
+import sys
 
-parser = argparse.ArgumentParser()
-parser.add_argument("-c", type=int, help="Contest to add the task to")
-parser.add_argument("ojuz_key", type=str)
-args = parser.parse_args()
-
-yaml_contents = """\
+yaml_contents_template = """\
 ---
 feedback_level: FULL
 
@@ -47,9 +43,9 @@ subtasks:
         output: !raw ''
 
 test_submissions: {}
-""".replace("%s", args.ojuz_key)
+"""
 
-tex_contents = r"""
+tex_contents_template = r"""
 \documentclass{article}
 \usepackage{hyperref}
 
@@ -59,11 +55,22 @@ Statement/Attachments siehe \href{https://oj.uz/problem/view/%s}{hier}. Es kann 
 
 \end{document}
 
-""".replace("%s", args.ojuz_key)
+"""
 
-dirpath = tempfile.mkdtemp()
 
-(Path(dirpath) / "task.yaml").write_text(yaml_contents)
-(Path(dirpath) / "temp.tex").write_text(tex_contents)
-subprocess.run(["cmsAOI", "-c", str(args.c), "."], cwd=dirpath, check=True)
-shutil.rmtree(dirpath)
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-c", type=int, help="Contest to add the task to")
+    parser.add_argument("ojuz_key", type=str)
+    args = parser.parse_args()
+
+    dirpath = tempfile.mkdtemp()
+
+    (Path(dirpath) / "task.yaml").write_text(yaml_contents_template.replace("%s", args.ojuz_key))
+    (Path(dirpath) / "temp.tex").write_text(tex_contents_template.replace("%s", args.ojuz_key))
+    subprocess.run(["cmsAOI", "-c", str(args.c), "."], cwd=dirpath, check=True)
+    shutil.rmtree(dirpath)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
