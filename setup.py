@@ -177,6 +177,7 @@ setup(
         "cms.grading.tasktypes": [
             "Batch=cms.grading.tasktypes.Batch:Batch",
             "BatchAndOutput=cms.grading.tasktypes.BatchAndOutput:BatchAndOutput",
+            "Ojuz=cms.grading.tasktypes.Ojuz:Ojuz",
             "Communication=cms.grading.tasktypes.Communication:Communication",
             "OutputOnly=cms.grading.tasktypes.OutputOnly:OutputOnly",
             "TwoSteps=cms.grading.tasktypes.TwoSteps:TwoSteps",

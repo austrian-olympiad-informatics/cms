@@ -10,7 +10,7 @@ from cmscontrib.aoi.const import CONF_NAME, CONF_LONG_NAME, CONF_AUTHOR, CONF_AT
     CONF_TESTCASES, CONF_INPUT, CONF_OUTPUT, CONF_CHECKER, CONF_TEST_SUBMISSIONS, CONF_GCC_ARGS, CONF_LATEX_CONFIG, \
     CONF_LATEXMK_ARGS, CONF_ADDITIONAL_FILES, FEEDBACK_LEVELS, SCORE_MODES, SCORE_TYPES, TASK_TYPES, CONF_CPP_CONFIG, \
     CONF_INPUT_TEMPLATE, CONF_PUBLIC, CONF_TOKENS, CONF_MAX_NUMBER, CONF_INITIAL, CONF_GEN_NUMBER, TOKEN_MODES, \
-    CONF_NUM_PROCESSES, CONF_MANAGER, CONF_CODENAME, CONF_TESTCASE_CHECKER
+    CONF_NUM_PROCESSES, CONF_MANAGER, CONF_CODENAME, CONF_TESTCASE_CHECKER, CONF_OJUZ_KEY
 from cmscontrib.aoi.yaml_loader import AOITag
 from cmscontrib.aoi import rule
 
@@ -160,7 +160,12 @@ CONFIG_SCHEMA = vol.Schema({
         vol.Required(CONF_TYPE): 'COMMUNICATION',
         vol.Required(CONF_MANAGER): validate_file,
         vol.Optional(CONF_NUM_PROCESSES, default=1): vol.Coerce(int),
-    }),
+    },
+    {
+        vol.Required(CONF_TYPE): 'OJUZ',
+        vol.Required(CONF_OJUZ_KEY): str,
+    }
+    ),
     vol.Required(CONF_SUBTASKS): [vol.All(vol.Schema({
         vol.Required(CONF_POINTS): vol.Coerce(float),
         vol.Optional(CONF_PUBLIC, default=True): vol.Coerce(bool),

@@ -24,7 +24,7 @@ from cmscontrib.aoi.const import CONF_EXTENDS, CONF_GCC_ARGS, CONF_LATEX_CONFIG,
     CONF_DECIMAL_PLACES, SCORE_MODES, CONF_MODE, CONF_GRADER, CONF_CHECKER, CONF_TYPE, CONF_POINTS, CONF_TASK_TYPE, \
     CONF_TIME_LIMIT, CONF_MEMORY_LIMIT, SCORE_TYPES, TASK_TYPES, CONF_CPP_CONFIG, CONF_PUBLIC, \
     CONF_TOKENS, CONF_INITIAL, CONF_GEN_NUMBER, TOKEN_MODES, CONF_MANAGER, CONF_NUM_PROCESSES, \
-    CONF_CODENAME, CONF_TESTCASE_CHECKER
+    CONF_CODENAME, CONF_TESTCASE_CHECKER, CONF_OJUZ_KEY
 from cmscontrib.aoi.core import core, CMSAOIError
 from cmscontrib.aoi import ninja_syntax, rule
 from cmscontrib.aoi.util import copytree, copy_if_necessary, write_if_changed
@@ -425,7 +425,7 @@ def find_rules(config):
             tc_name = f'{i:02d}_{j:02d}'
             result_in = core.result_dir / f'{tc_name}.in'
             result_out = core.result_dir / f'{tc_name}.out'
-            
+
             register_rule(rule.InternalCopyNinja(testcase[CONF_INPUT], result_in))
             register_rule(rule.InternalCopyNinja(testcase[CONF_OUTPUT], result_out))
 
@@ -639,6 +639,17 @@ def construct_task(config, all_rules, put_file):
             digest = put_file(conf[CONF_MANAGER], f'Communication manager for task {name}')
             managers.append(Manager(filename='manager', digest=digest))
             task_type = 'Communication'
+        elif conf.get(CONF_TYPE) == 'OJUZ':
+            task_type_params = [
+                # compiled alone (`alone`) or with grader (`grader`)
+                compilation_param,
+                # I/O, empty for stdin/stdout. Otherwise filenames for input/output files
+                ['', ''],
+                # Evaluated by white-diff (`diff`) or with checker (`comparator`)
+                evaluation_param,
+                config[CONF_TASK_TYPE][CONF_OJUZ_KEY],
+            ]
+            task_type = 'Ojuz'
         else:
             raise NotImplementedError
     else:
