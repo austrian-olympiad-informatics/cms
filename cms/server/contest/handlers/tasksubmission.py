@@ -384,7 +384,7 @@ class SubmissionDetailsHandler(ContestHandler):
                 sha.update(str(submission.id).encode())
                 i = int(sha.hexdigest()[:8], 16)
                 chosen = candidates[i % len(candidates)]
-                meme_url = f"/memes/{chosen}"
+                meme_url = f"/cws/memes/{chosen}"
 
         self.render("submission_details.html", sr=sr, details=details, meme_url=meme_url,
                     **self.r_params)
