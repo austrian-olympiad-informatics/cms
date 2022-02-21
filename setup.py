@@ -196,6 +196,7 @@ setup(
             "C++14 / g++=cms.grading.languages.cpp14_gpp:Cpp14Gpp",
             "C++17 / g++=cms.grading.languages.cpp17_gpp:Cpp17Gpp",
             "C++20 / g++=cms.grading.languages.cpp20_gpp:Cpp20Gpp",
+            "Brainfuck=cms.grading.languages.brainfuck:Brainfuck",
             "C11 / gcc=cms.grading.languages.c11_gcc:C11Gcc",
             "C# / Mono=cms.grading.languages.csharp_mono:CSharpMono",
             "Haskell / ghc=cms.grading.languages.haskell_ghc:HaskellGhc",
