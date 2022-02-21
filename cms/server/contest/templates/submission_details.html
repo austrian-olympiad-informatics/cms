@@ -7,7 +7,7 @@
 {% endif %}
 
 {% if meme_url is not none %}
-<img class="score_meme" src="{{ url("memes", meme_url) }}">
+<img class="score_meme" src="{{ meme_url }}">
 {% endif %}
 
 {% if sr is not none and sr.compiled() %}
