@@ -24,8 +24,7 @@ class Brainfuck(CompiledLanguage):
                                  for_evaluation=True):
         """See Language.get_compilation_commands."""
         fname = source_filenames[0]
-        creat = Path(fname).with_suffix("").name
         return [
             ["/usr/bin/bfc", fname],
-            ["/bin/mv", creat, executable_filename]
+            ["/usr/bin/cp", Path(fname).with_suffix(""), executable_filename]
         ]
