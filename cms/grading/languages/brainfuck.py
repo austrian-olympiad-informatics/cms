@@ -25,7 +25,7 @@ class Brainfuck(CompiledLanguage):
         """See Language.get_compilation_commands."""
         fname = source_filenames[0]
         creat = Path(fname).with_suffix("").name
-        assert executable_filename == creat
         return [
-            ["/usr/bin/bfc", fname]
+            ["/usr/bin/bfc", fname],
+            ["/bin/mv", creat, executable_filename]
         ]
