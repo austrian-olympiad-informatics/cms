@@ -14,4 +14,4 @@ log/
 /.idea/
 .vscode/
 /venv/
-
+/config/rootfs/
