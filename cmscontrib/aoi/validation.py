@@ -4,7 +4,7 @@ import shlex
 
 import voluptuous as vol
 
-from cmscontrib.aoi.const import CONF_NAME, CONF_LONG_NAME, CONF_AUTHOR, CONF_ATTRIBUTION, CONF_USES, CONF_STATEMENTS, \
+from cmscontrib.aoi.const import CONF_NAME, CONF_LONG_NAME, CONF_AUTHOR, CONF_ATTRIBUTION, CONF_USER_IO, CONF_USES, CONF_STATEMENTS, \
     CONF_ATTACHMENTS, CONF_FEEDBACK_LEVEL, CONF_SCORE_OPTIONS, CONF_DECIMAL_PLACES, CONF_MODE, CONF_TYPE, \
     CONF_TIME_LIMIT, CONF_MEMORY_LIMIT, CONF_SAMPLE_SOLUTION, CONF_GRADER, CONF_TASK_TYPE, CONF_SUBTASKS, CONF_POINTS, \
     CONF_TESTCASES, CONF_INPUT, CONF_OUTPUT, CONF_CHECKER, CONF_TEST_SUBMISSIONS, CONF_GCC_ARGS, CONF_LATEX_CONFIG, \
@@ -160,6 +160,7 @@ CONFIG_SCHEMA = vol.Schema({
         vol.Required(CONF_TYPE): 'COMMUNICATION',
         vol.Required(CONF_MANAGER): validate_file,
         vol.Optional(CONF_NUM_PROCESSES, default=1): vol.Coerce(int),
+        vol.Optional(CONF_USER_IO, default="std_io"): vol.Any("std_io", "fifo_io"),
     },
     {
         vol.Required(CONF_TYPE): 'OJUZ',
