@@ -13,3 +13,5 @@ lib/
 log/
 /.idea/
 .vscode/
+/venv/
+
