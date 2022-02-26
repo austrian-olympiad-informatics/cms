@@ -21,7 +21,7 @@ import cms.log
 from cmscontrib.aoi.const import CONF_EXTENDS, CONF_GCC_ARGS, CONF_LATEX_CONFIG, CONF_LATEXMK_ARGS, \
     CONF_ADDITIONAL_FILES, CONF_NAME, CONF_TEST_SUBMISSIONS, CONF_SAMPLE_SOLUTION, CONF_SUBTASKS, CONF_TESTCASES, \
     CONF_OUTPUT, CONF_INPUT, CONF_SCORE_OPTIONS, CONF_STATEMENTS, CONF_ATTACHMENTS, CONF_FEEDBACK_LEVEL, CONF_LONG_NAME, \
-    CONF_DECIMAL_PLACES, SCORE_MODES, CONF_MODE, CONF_GRADER, CONF_CHECKER, CONF_TYPE, CONF_POINTS, CONF_TASK_TYPE, \
+    CONF_DECIMAL_PLACES, CONF_USER_IO, SCORE_MODES, CONF_MODE, CONF_GRADER, CONF_CHECKER, CONF_TYPE, CONF_POINTS, CONF_TASK_TYPE, \
     CONF_TIME_LIMIT, CONF_MEMORY_LIMIT, SCORE_TYPES, TASK_TYPES, CONF_CPP_CONFIG, CONF_PUBLIC, \
     CONF_TOKENS, CONF_INITIAL, CONF_GEN_NUMBER, TOKEN_MODES, CONF_MANAGER, CONF_NUM_PROCESSES, \
     CONF_CODENAME, CONF_TESTCASE_CHECKER, CONF_OJUZ_KEY
@@ -634,7 +634,7 @@ def construct_task(config, all_rules, put_file):
                 # compiled alone (`alone`) or with grader (`stub`)
                 'stub' if compilation_param == 'grader' else 'alone',
                 # User I/O on stdin/out (std_io) or via fifos (fifo_io)
-                'std_io'
+                conf[CONF_USER_IO]
             ]
             digest = put_file(conf[CONF_MANAGER], f'Communication manager for task {name}')
             managers.append(Manager(filename='manager', digest=digest))
