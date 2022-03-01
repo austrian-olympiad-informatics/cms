@@ -489,6 +489,8 @@ def construct_task(config, all_rules, put_file):
         _LOGGER.info("  - No task attachments!")
     _LOGGER.info("")
 
+    subtasks = config[CONF_SUBTASKS]
+
     # ================ SUBMISSION FORMAT ================
     # Submission format (what the uploaded files are to be called, .%l is replaced by file suffix)
     submission_format = [f'{name}.%l']
@@ -567,8 +569,6 @@ def construct_task(config, all_rules, put_file):
         # No checker, validate output with a simple diff (ignoring whitespace)
         evaluation_param = "diff"
         _LOGGER.info("  - Testcase output is checked with an output diff.")
-
-    subtasks = config[CONF_SUBTASKS]
 
     # ================ SCORE TYPE ================
     # Score type: How scores of the individual testcases are combined to the score of a submission
