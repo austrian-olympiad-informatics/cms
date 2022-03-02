@@ -54,8 +54,7 @@ def _is_contest_multithreaded(contest):
     return (boolean): True if the sandbox should allow multithreading.
 
     """
-    return any(get_language(l).requires_multithreading
-               for l in contest.languages)
+    return True
 
 
 class Job:
