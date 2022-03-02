@@ -282,6 +282,10 @@ class Communication(TaskType):
         sandbox_mgr.create_file_from_storage(
             self.INPUT_FILENAME, job.input)
 
+        # put submission text in manager
+        submission_digest = next(iter(job.files.values())).digest
+        sandbox_mgr.create_file_from_storage("submission.txt", submission_digest)
+
         # Create the user sandbox(es) and copy the executable.
         sandbox_user = [create_sandbox(file_cacher, name="user_evaluate")
                         for i in indices]
