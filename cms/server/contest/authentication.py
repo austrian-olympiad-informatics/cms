@@ -29,6 +29,7 @@ import ipaddress
 import json
 import logging
 from datetime import timedelta
+import hmac
 
 from sqlalchemy.orm import contains_eager, joinedload
 
@@ -341,7 +342,7 @@ def _authenticate_request_from_cookie(sql_session, contest, timestamp, cookie):
 
     # We compare hashed password because it would be too expensive to
     # re-hash the user-provided plaintext password at every request.
-    if password != correct_password:
+    if not hmac.compare_digest(password, correct_password):
         log_failed_attempt("wrong password")
         return None, None
 

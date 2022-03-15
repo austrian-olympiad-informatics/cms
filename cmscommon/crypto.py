@@ -25,6 +25,7 @@
 import binascii
 import random
 from string import ascii_lowercase
+import hmac
 
 import bcrypt
 from Crypto import Random
@@ -189,13 +190,10 @@ def validate_password(authentication, password):
     method, payload = parse_authentication(authentication)
     if method == "bcrypt":
         password = password.encode('utf-8')
-        payload = payload.encode('utf-8')
-        try:
-            return bcrypt.hashpw(password, payload) == payload
-        except ValueError:
-            return False
+        hashed = payload.encode('utf-8')
+        return bcrypt.checkpw(password, hashed)
     elif method == "plaintext":
-        return payload == password
+        return hmac.compare_digest(password, hashed)
     else:
         raise ValueError("Authentication method not known.")
 
