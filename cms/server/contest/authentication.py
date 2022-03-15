@@ -30,6 +30,7 @@ import json
 import logging
 from datetime import datetime, timedelta
 import typing
+import hmac
 
 from sqlalchemy.orm import contains_eager, joinedload
 
@@ -404,7 +405,7 @@ def _authenticate_request_from_cookie_or_authorization_header(
         # We compare hashed password because it would be too expensive to
         # re-hash the user-provided plaintext password at every request.
         correct_password = get_password(participation)
-        if password != correct_password:
+        if not hmac.compare_digest(password, correct_password):
             log_failed_attempt("wrong password")
             return None, None, False
 

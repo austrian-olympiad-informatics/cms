@@ -26,6 +26,7 @@ import binascii
 import hmac
 import random
 from string import ascii_lowercase
+import hmac
 
 import bcrypt
 from Crypto import Random
@@ -199,7 +200,7 @@ def validate_password(authentication: str, password: str) -> bool:
         except ValueError:
             return False
     elif method == "plaintext":
-        return hmac.compare_digest(password_bytes, payload_bytes)
+        return hmac.compare_digest(password, hashed)
     else:
         raise ValueError("Authentication method not known.")
 
