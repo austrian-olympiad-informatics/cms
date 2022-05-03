@@ -15,7 +15,5 @@ babel==2.9.1
 pyxdg==0.27
 Jinja2==3.0.2
 colorlog==6.5.0
-pyyaml==5.4.1
-voluptuous==0.12.2
 secure-cookie==0.2.0
 beautifulsoup4
