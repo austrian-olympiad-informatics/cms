@@ -28,14 +28,18 @@
 import ipaddress
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, datetime, timedelta, timezone
 import typing
-import hmac
+import secrets
+import base64
 
 from sqlalchemy.orm import contains_eager, joinedload
+import nacl.secret
+import nacl.exceptions
 
 from cms import config
 from cms.db import Participation, User
+from cms.db.user import ParticipationSessionToken, SESSION_TOKEN_SOURCE_PASSWORD_AUTHENTICATION, SESSION_TOKEN_SOURCE_SSO_AUTHENTICATION
 from cms.db.contest import Contest
 from cms.db.session import Session
 from cmscommon.crypto import validate_password
@@ -165,11 +169,97 @@ def validate_login(
                 "contest %s, at %s", ip_address, username, contest.name,
                 timestamp)
 
-    # If hashing is used, the cookie stores the hashed password so that
-    # the expensive bcrypt call doesn't need to be done at every request.
-    return (participation,
-            json.dumps([username, correct_password, make_timestamp(timestamp), False])
-                .encode("utf-8"))
+    token_s = secrets.token_urlsafe(32)
+    token = ParticipationSessionToken(
+        token=token_s,
+        participation=participation,
+        created_at=timestamp,
+        valid_until=timestamp + timedelta(seconds=config.cookie_duration),
+        source=SESSION_TOKEN_SOURCE_PASSWORD_AUTHENTICATION,
+    )
+    sql_session.add(token)
+    sql_session.commit()
+
+    cookie_value = json.dumps(["v1", username, token_s]).encode("utf-8")
+
+    return (participation, cookie_value)
+
+
+def validate_sso_login(sql_session, contest, timestamp, token, ip_address):
+    def log_failed_attempt(msg, *args):
+        logger.info("Unsuccessful login attempt from IP address %s, "
+                    "on contest %s, at %s: " + msg, ip_address,
+                    contest.name, timestamp, *args)
+
+    if not contest.allow_sso_authentication:
+        log_failed_attempt("SSO authentication not allowed")
+        return None, None
+
+    if not contest.sso_secret_key:
+        log_failed_attempt("SSO secret key not configured")
+        return None, None
+
+    try:
+        tokenbytes = base64.urlsafe_b64decode(token)
+    except ValueError:
+        log_failed_attempt("Token not urlsafe base64")
+        return None, None
+
+    try:
+        keybytes = base64.b64decode(contest.sso_secret_key.encode())
+    except ValueError:
+        logger.error("SSO key on contest %s not in base64 format!", contest.name)
+        raise
+    try:
+        box = nacl.secret.SecretBox(keybytes)
+    except ValueError:
+        logger.error("SSO key on contest %s not 32 bytes long!", contest.name)
+        raise
+
+    try:
+        plaintext = box.decrypt(tokenbytes)
+    except nacl.exceptions.CryptoError:
+        log_failed_attempt("Invalid decryption ok token")
+        return None, None
+
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+
+    js = json.loads(plaintext.decode("utf-8"))
+    created_at = datetime.utcfromtimestamp(js["created_at"]).replace(tzinfo=timezone.utc)
+    valid_until = datetime.utcfromtimestamp(js["valid_until"]).replace(tzinfo=timezone.utc)
+    if timestamp + timedelta(seconds=5) < created_at:
+        # Give a little bit of leeway
+        log_failed_attempt("Invalid created_at field")
+        return None, None
+    if timestamp > valid_until:
+        log_failed_attempt("SSO token no longer valid")
+        return None, None
+
+    participation_id = js["participation_id"]
+    assert isinstance(participation_id, int)
+
+    participation = sql_session.query(Participation) \
+        .join(Participation.user) \
+        .options(contains_eager(Participation.user)) \
+        .filter(Participation.contest == contest)\
+        .filter(Participation.id == participation_id)\
+        .first()
+
+    token_s = secrets.token_urlsafe(32)
+    token = ParticipationSessionToken(
+        token=token_s,
+        participation=participation,
+        created_at=timestamp,
+        valid_until=timestamp + timedelta(seconds=config.cookie_duration),
+        source=SESSION_TOKEN_SOURCE_SSO_AUTHENTICATION,
+    )
+    sql_session.add(token)
+    sql_session.commit()
+
+    cookie_value = json.dumps(["v1", participation.user.username, token_s]).encode("utf-8")
+
+    return (participation, cookie_value)
 
 
 class AmbiguousIPAddress(Exception):
@@ -355,11 +445,10 @@ def _authenticate_request_from_cookie_or_authorization_header(
 
     # Parse cookie.
     try:
-        cookie: typing.Any = json.loads(cookie.decode("utf-8"))
-        username: str = cookie[0]
-        password: str = cookie[1]
-        last_update = make_datetime(cookie[2])
-        impersonated: bool = cookie[3]
+        cookie = json.loads(cookie.decode("utf-8"))
+        version = cookie[0]
+        username = cookie[1]
+        token_s = cookie[2]
     except Exception as e:
         # Cookies are stored securely and thus cannot be tampered with:
         # this is either a programming or a configuration error.
@@ -371,51 +460,29 @@ def _authenticate_request_from_cookie_or_authorization_header(
         return None, None, False
 
     def log_failed_attempt(msg, *args):
-        logger.info("Unsuccessful cookie authentication as %r, returning from "
-                    "%s, at %s: " + msg, username, last_update, timestamp,
-                    *args)
+        logger.info("Unsuccessful cookie authentication as %r, at %s: " + msg,
+                    username, timestamp, *args)
 
-    # Check if the cookie is expired.
-    if timestamp - last_update > timedelta(
-        seconds=config.contest_web_server.cookie_duration
-    ):
+    token_obj = sql_session.query(ParticipationSessionToken) \
+        .filter(ParticipationSessionToken.token == token_s) \
+        .join(ParticipationSessionToken.participation) \
+        .options(contains_eager(ParticipationSessionToken.participation)) \
+        .join(Participation.user) \
+        .options(contains_eager(ParticipationSessionToken.participation, Participation.user)) \
+        .first()
+
+    if token_obj is None:
+        log_failed_attempt("invalid token")
+        return None, None
+
+    if timestamp > token_obj.valid_until:
         log_failed_attempt("cookie expired (lasts %d seconds)",
                            config.contest_web_server.cookie_duration)
         return None, None, False
 
-    # Load participation from DB and make sure it exists.
-    participation: Participation | None = (
-        sql_session.query(Participation)
-        .join(Participation.user)
-        .options(contains_eager(Participation.user))
-        .filter(Participation.contest == contest)
-        .filter(User.username == username)
-        .first()
-    )
-    if participation is None:
-        log_failed_attempt("user not registered to contest")
-        return None, None, False
+    logger.info("Successful cookie authentication as user %r, on contest %s, "
+                "at %s", username, contest.name, timestamp)
 
-    if impersonated:
-        correct_password = ""
-        logger.info("Successful impersonation of user %r, on contest %s, "
-                    "returning from %s, at %s", username, contest.name, last_update,
-                    timestamp)
-    else:
-        # We compare hashed password because it would be too expensive to
-        # re-hash the user-provided plaintext password at every request.
-        correct_password = get_password(participation)
-        if not hmac.compare_digest(password, correct_password):
-            log_failed_attempt("wrong password")
-            return None, None, False
+    cookie_value = json.dumps(["v1", username, token_s]).encode("utf-8")
 
-        logger.info("Successful cookie authentication as user %r, on contest %s, "
-                    "returning from %s, at %s", username, contest.name, last_update,
-                    timestamp)
-
-    # We store the hashed password (if hashing is used) so that the
-    # expensive bcrypt hashing doesn't need to be done at every request.
-    return (participation,
-            json.dumps([username, correct_password, make_timestamp(timestamp), impersonated])
-                .encode("utf-8"),
-            impersonated)
+    return (token_obj.participation, cookie_value)

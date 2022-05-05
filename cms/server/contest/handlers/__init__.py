@@ -48,7 +48,8 @@ from .main import \
     StartHandler, \
     NotificationsHandler, \
     PrintingHandler, \
-    DocumentationHandler
+    DocumentationHandler, \
+    SSOHandler
 from .communication import \
     CommunicationHandler, \
     QuestionHandler
@@ -64,6 +65,7 @@ HANDLERS = [
     # Main
 
     (r"/login", LoginHandler),
+    (r"/sso/authorized", SSOHandler),
     (r"/logout", LogoutHandler),
     (r"/register", RegistrationHandler),
     (r"/start", StartHandler),
