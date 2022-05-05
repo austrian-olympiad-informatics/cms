@@ -111,6 +111,18 @@ class Contest(Base):
         nullable=False,
         default=True)
 
+    # Whether to allow sso authentication
+    allow_sso_authentication = Column(
+        Boolean,
+        nullable=False,
+        default=False)
+
+    sso_secret_key = Column(
+        String, nullable=False, default="")
+
+    sso_redirect_url = Column(
+        String, nullable=False, default="")
+
     # Whether the registration of new users is enabled.
     allow_registration = Column(
         Boolean,

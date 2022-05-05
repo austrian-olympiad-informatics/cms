@@ -90,6 +90,7 @@ $(document).ready(function () {
             <div class="login_box hero-unit">
                 <h1>{% trans %}Welcome{% endtrans %}</h1>
                 <p>{% trans %}Please log in{% endtrans %}</p>
+                {% if contest.allow_password_authentication %}
                 <form class="form-horizontal" action="{{ contest_url("login") }}" method="POST">
                     {{ xsrf_form_html|safe }}
                     {% set next_page = handler.get_argument("next", none) %}
@@ -117,6 +118,10 @@ $(document).ready(function () {
                         </div>
                     </fieldset>
                 </form>
+                {% endif %}
+                {% if contest.allow_sso_authentication %}
+                <p>Follow <a href="{{ contest.sso_redirect_url }}">this link</a> to log in to this contest.</p>
+                {% endif %}
                 {% if contest.allow_registration %}
                 <p style="margin: 9px 0 0;">
                     {% trans %}Don't have an account?{% endtrans %} <a href="{{ contest_url('register') }}">{% trans %}Register{% endtrans %}</a>

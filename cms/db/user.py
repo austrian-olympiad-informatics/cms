@@ -26,13 +26,14 @@
 """
 
 from datetime import timedelta
+import enum
 
 from sqlalchemy.dialects.postgresql import ARRAY, CIDR
 from sqlalchemy.orm import relationship
 from sqlalchemy.schema import Column, ForeignKey, CheckConstraint, \
     UniqueConstraint
 from sqlalchemy.types import Boolean, Integer, String, Unicode, DateTime, \
-    Interval
+    Interval, Enum
 
 from cmscommon.crypto import generate_random_password, build_password
 from . import CastingArray, Codename, Base, Admin, Contest
@@ -273,6 +274,39 @@ class Participation(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
         back_populates="participation")
+
+    session_tokens = relationship(
+        "ParticipationSessionToken",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        back_populates="participation")
+
+
+SESSION_TOKEN_SOURCE_PASSWORD_AUTHENTICATION = 'password'
+SESSION_TOKEN_SOURCE_SSO_AUTHENTICATION = 'sso'
+
+
+class ParticipationSessionToken(Base):
+    __tablename__ = "participation_session_tokens"
+
+    id = Column(Integer, primary_key=True)
+    token = Column(String, nullable=False, unique=True, index=True)
+    participation_id = Column(
+        Integer,
+        ForeignKey(Participation.id,
+                   onupdate="CASCADE", ondelete="CASCADE"),
+        nullable=False,
+        index=True)
+    participation = relationship(
+        Participation,
+        back_populates="session_tokens")
+    created_at = Column(DateTime, nullable=False)
+    valid_until = Column(DateTime, nullable=False)
+    source = Column(Enum(
+        SESSION_TOKEN_SOURCE_PASSWORD_AUTHENTICATION,
+        SESSION_TOKEN_SOURCE_SSO_AUTHENTICATION,
+        name="session_token_source",
+    ), nullable=False)
 
 
 class Message(Base):

@@ -43,7 +43,7 @@ from cms import config
 from cms.db import PrintJob, User, Participation, Team
 from cms.grading.steps import COMPILATION_MESSAGES, EVALUATION_MESSAGES
 from cms.server import multi_contest
-from cms.server.contest.authentication import validate_login
+from cms.server.contest.authentication import validate_login, validate_sso_login
 from cms.server.contest.communication import get_communications
 from cms.server.contest.printing import accept_print_job, PrintingDisabled, \
     UnacceptablePrintJob
@@ -240,6 +240,43 @@ class LoginHandler(ContestHandler):
             self.redirect(error_page)
         else:
             self.redirect(next_page)
+
+
+class SSOHandler(ContestHandler):
+    @multi_contest
+    def get(self):
+        next_page = self.get_argument("next", None)
+        if next_page is not None:
+            if next_page != "/":
+                next_page = self.url(*next_page.strip("/").split("/"))
+            else:
+                next_page = self.url()
+        else:
+            next_page = self.contest_url()
+
+        token = self.get_argument("token", "")
+
+        try:
+            ip_address = ipaddress.ip_address(self.request.remote_ip)
+        except ValueError:
+            logger.warning("Invalid IP address provided by Tornado: %s",
+                           self.request.remote_ip)
+            return None
+
+        participation, cookie = validate_sso_login(
+            self.sql_session, self.contest, self.timestamp, token,
+            ip_address)
+
+        cookie_name = self.contest.name + "_login"
+        if cookie is None:
+            self.clear_cookie(cookie_name)
+        else:
+            self.set_secure_cookie(cookie_name, cookie, expires_days=None)
+
+        if participation is not None:
+            self.redirect(next_page)
+            return
+        self.render("sso_error.html", **self.r_params)
 
 
 class StartHandler(ContestHandler):

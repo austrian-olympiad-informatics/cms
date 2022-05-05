@@ -65,6 +65,7 @@ class ContestHandler(BaseHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.contest_url = None
+        self.login_url = None
 
     def prepare(self):
         self.choose_contest()
@@ -83,6 +84,11 @@ class ContestHandler(BaseHandler):
             self.contest_url = self.url[self.contest.name]
         else:
             self.contest_url = self.url
+
+        self.login_url = self.contest_url()
+
+        if self.contest.allow_sso_authentication and self.contest.sso_redirect_url:
+            self.login_url = self.contest.sso_redirect_url
 
         # Run render_params() now, not at the beginning of the request,
         # because we need contest_name
@@ -215,7 +221,7 @@ class ContestHandler(BaseHandler):
         use the "login_url" application parameter.
 
         """
-        return self.contest_url()
+        return self.login_url
 
     def get_task(self, task_name):
         """Return the task in the contest with the given name.
