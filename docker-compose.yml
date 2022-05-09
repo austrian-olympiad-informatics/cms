@@ -1,0 +1,127 @@
+version: '3'
+
+services:
+  cmsdb:
+    image: postgres:14
+    volumes:
+      - ./docker-data/db:/var/lib/postgresql/data:rw
+    environment:
+      POSTGRES_PASSWORD: cms
+      POSTGRES_USER: cmsuser
+      POSTGRES_DB: cmsdb
+    networks:
+      - cms
+    restart: unless-stopped
+
+  cms-console:
+    build:
+      context: .
+      target: cmsworker
+    command: tail -f /dev/null
+    volumes:
+      - "./config/cms.docker.conf:/usr/local/etc/cms.conf:rw"
+      - "/sys/fs/cgroup:/sys/fs/cgroup:rw"
+    networks:
+      - cms
+    restart: unless-stopped
+  log-service:
+    build:
+      context: .
+      target: cmsbase
+    command: cmsLogService 0
+    volumes:
+      - "./config/cms.docker.conf:/usr/local/etc/cms.conf:rw"
+    networks:
+      - cms
+    restart: unless-stopped
+  admin-web-server:
+    build:
+      context: .
+      target: cmsbase
+    command: cmsAdminWebServer 0
+    volumes:
+      - "./config/cms.docker.conf:/usr/local/etc/cms.conf:rw"
+    ports:
+      - 8889:8889
+    networks:
+      - cms
+    restart: unless-stopped
+  contest-web-server:
+    build:
+      context: .
+      target: cmsbase
+    command: cmsContestWebServer -c ALL 0
+    volumes:
+      - "./config/cms.docker.conf:/usr/local/etc/cms.conf:rw"
+    ports:
+      - 8888:8888
+    networks:
+      - cms
+    restart: unless-stopped
+  evaluation-service:
+    build:
+      context: .
+      target: cmsbase
+    command: cmsEvaluationService -c ALL 0
+    volumes:
+      - "./config/cms.docker.conf:/usr/local/etc/cms.conf:rw"
+    networks:
+      - cms
+    restart: unless-stopped
+  scoring-service:
+    build:
+      context: .
+      target: cmsbase
+    command: cmsScoringService -c ALL 0
+    volumes:
+      - "./config/cms.docker.conf:/usr/local/etc/cms.conf:rw"
+    networks:
+      - cms
+    restart: unless-stopped
+  worker-0:
+    build:
+      context: .
+      target: cmsworker
+    command: cmsWorker 0
+    volumes:
+      - "./config/cms.docker.conf:/usr/local/etc/cms.conf:rw"
+      - "/sys/fs/cgroup:/sys/fs/cgroup:rw"
+    networks:
+      - cms
+    restart: unless-stopped
+  worker-1:
+    build:
+      context: .
+      target: cmsworker
+    command: cmsWorker 1
+    volumes:
+      - "./config/cms.docker.conf:/usr/local/etc/cms.conf:rw"
+      - "/sys/fs/cgroup:/sys/fs/cgroup:rw"
+    networks:
+      - cms
+    restart: unless-stopped
+  worker-2:
+    build:
+      context: .
+      target: cmsworker
+    command: cmsWorker 2
+    volumes:
+      - "./config/cms.docker.conf:/usr/local/etc/cms.conf:rw"
+      - "/sys/fs/cgroup:/sys/fs/cgroup:rw"
+    networks:
+      - cms
+    restart: unless-stopped
+  worker-3:
+    build:
+      context: .
+      target: cmsworker
+    command: cmsWorker 3
+    volumes:
+      - "./config/cms.docker.conf:/usr/local/etc/cms.conf:rw"
+      - "/sys/fs/cgroup:/sys/fs/cgroup:rw"
+    networks:
+      - cms
+    restart: unless-stopped
+
+networks:
+  cms:
