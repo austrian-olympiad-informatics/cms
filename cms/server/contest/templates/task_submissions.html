@@ -238,10 +238,6 @@ $(document).ready(function () {
 
 </div>
 {% endif %}
-{% if task.name == 'GARAGE' %}
-  <br/>
-  Globale Kürzeste Lösung: {{ garage_shortest_solution }} Zeichen
-{% endif %}
 
 {% if actual_phase == 0 or actual_phase == 3 or participation.unrestricted or (0 <= actual_phase <= 3 and contest.allow_unofficial_submission_before_analysis_mode) %}
 
