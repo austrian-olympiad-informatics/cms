@@ -975,6 +975,8 @@ class IsolateSandbox(SandboxBase):
         # packages.
         self.set_env["HOME"] = self._home_dest
 
+        self.set_env["GOCACHE"] = "/tmp"
+
         # Needed on Ubuntu by PHP (and more), since /usr/bin only contains a
         # symlink to one out of many alternatives.
         if config.chroot_base_image is None:
@@ -1139,7 +1141,7 @@ class IsolateSandbox(SandboxBase):
                 '--no-default-dirs',
                 f'--dir=/={config.chroot_base_image}',
                 '--dir=proc=proc:fs',
-                '--dir=dev',
+                '--dir=dev:dev',
                 '--dir=box=./box:rw',
             ]
         if self.chdir is not None:
