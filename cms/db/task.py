@@ -90,8 +90,7 @@ class Task(Base):
     # Short name and long human readable title of the task.
     name = Column(
         Codename,
-        nullable=False,
-        unique=True)
+        nullable=False)
     title = Column(
         Unicode,
         nullable=False)
