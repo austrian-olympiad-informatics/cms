@@ -924,15 +924,17 @@ class IsolateSandbox(SandboxBase):
         # packages.
         self.set_env["HOME"] = self._home_dest
 
+        self.set_env["GOCACHE"] = "/tmp"
+
         # Needed on Ubuntu by PHP (and more), since /usr/bin only contains a
         # symlink to one out of many alternatives.
         if config.chroot_base_image is None:
             self.maybe_add_mapped_directory("/etc/alternatives")
 
-        # Likewise, needed by C# programs. The Mono runtime looks in
-        # /etc/mono/config to obtain the default DllMap, which includes, in
-        # particular, the System.Native assembly.
-        self.maybe_add_mapped_directory("/etc/mono", options="noexec")
+            # Likewise, needed by C# programs. The Mono runtime looks in
+            # /etc/mono/config to obtain the default DllMap, which includes, in
+            # particular, the System.Native assembly.
+            self.maybe_add_mapped_directory("/etc/mono", options="noexec")
 
         # Tell isolate to get the sandbox ready. We do our best to cleanup
         # after ourselves, but we might have missed something if a previous
@@ -1083,7 +1085,7 @@ class IsolateSandbox(SandboxBase):
                 '--no-default-dirs',
                 f'--dir=/={config.chroot_base_image}',
                 '--dir=proc=proc:fs',
-                '--dir=dev',
+                '--dir=dev:dev',
                 '--dir=box=./box:rw',
             ]
         if self.chdir is not None:
