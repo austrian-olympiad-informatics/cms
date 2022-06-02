@@ -279,6 +279,17 @@ class Task(Base):
         passive_deletes=True,
         back_populates="task")
 
+    user_evals = relationship(
+        "UserEval",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        back_populates="task")
+
+    announcements = relationship("Announcement", back_populates="task")
+    questions = relationship("Question", back_populates="task")
+    messages = relationship("Message", back_populates="task")
+    memes = relationship("Meme", back_populates="task")
+
     def get_allowed_languages(self) -> list[str] | None:
         """Get the list of allowed languages for this task.
 
@@ -458,6 +469,20 @@ class Dataset(Base):
         passive_deletes=True,
         back_populates="dataset")
 
+    language_templates = relationship(
+        "LanguageTemplate",
+        collection_class=attribute_mapped_collection("filename"),
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        back_populates="dataset")
+
+    test_managers = relationship(
+        "TestManager",
+        collection_class=attribute_mapped_collection("filename"),
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        back_populates="dataset")
+
     @property
     def active(self) -> bool:
         """Shorthand for detecting if the dataset is active.
@@ -533,6 +558,16 @@ class Dataset(Base):
                 new_m = old_m.clone()
                 new_m.dataset = self
 
+        if clone_managers or clone_results:
+            for old_lt in old_dataset.language_templates.values():
+                new_lt = old_lt.clone()
+                new_lt.dataset = self
+
+        if clone_managers or clone_results:
+            for old_tm in old_dataset.test_managers.values():
+                new_tm = old_tm.clone()
+                new_tm.dataset = self
+
         # TODO: why is this needed?
         self.sa_session.flush()
 
@@ -590,6 +625,130 @@ class Manager(Base):
         Filename,
         nullable=False)
     digest: str = Column(
+        Digest,
+        nullable=False)
+
+
+class LanguageTemplate(Base):
+    __tablename__ = 'language_templates'
+    __table_args__ = (
+        UniqueConstraint('dataset_id', 'filename'),
+    )
+
+    # Auto increment primary key.
+    id = Column(
+        Integer,
+        primary_key=True)
+
+    # Dataset (id and object) owning the manager.
+    dataset_id = Column(
+        Integer,
+        ForeignKey(Dataset.id,
+                   onupdate="CASCADE", ondelete="CASCADE"),
+        nullable=False,
+        index=True)
+    dataset = relationship(
+        Dataset,
+        back_populates="language_templates")
+
+    # Filename and digest of the provided manager.
+    filename = Column(
+        Filename,
+        nullable=False)
+    digest = Column(
+        Digest,
+        nullable=False)
+
+
+class TestManager(Base):
+    __tablename__ = 'test_managers'
+    __table_args__ = (
+        UniqueConstraint('dataset_id', 'filename'),
+    )
+
+    # Auto increment primary key.
+    id: int = Column(
+        Integer,
+        primary_key=True)
+
+    # Dataset (id and object) owning the manager.
+    dataset_id: int = Column(
+        Integer,
+        ForeignKey(Dataset.id,
+                   onupdate="CASCADE", ondelete="CASCADE"),
+        nullable=False,
+        index=True)
+    dataset: Dataset = relationship(
+        Dataset,
+        back_populates="test_managers")
+
+    # Filename and digest of the provided manager.
+    filename: str = Column(
+        Filename,
+        nullable=False)
+    digest: str = Column(
+        Digest,
+        nullable=False)
+
+
+class LanguageTemplate(Base):
+    __tablename__ = 'language_templates'
+    __table_args__ = (
+        UniqueConstraint('dataset_id', 'filename'),
+    )
+
+    # Auto increment primary key.
+    id = Column(
+        Integer,
+        primary_key=True)
+
+    # Dataset (id and object) owning the manager.
+    dataset_id = Column(
+        Integer,
+        ForeignKey(Dataset.id,
+                   onupdate="CASCADE", ondelete="CASCADE"),
+        nullable=False,
+        index=True)
+    dataset = relationship(
+        Dataset,
+        back_populates="language_templates")
+
+    # Filename and digest of the provided manager.
+    filename = Column(
+        Filename,
+        nullable=False)
+    digest = Column(
+        Digest,
+        nullable=False)
+
+
+class TestManager(Base):
+    __tablename__ = 'test_managers'
+    __table_args__ = (
+        UniqueConstraint('dataset_id', 'filename'),
+    )
+
+    # Auto increment primary key.
+    id = Column(
+        Integer,
+        primary_key=True)
+
+    # Dataset (id and object) owning the manager.
+    dataset_id = Column(
+        Integer,
+        ForeignKey(Dataset.id,
+                   onupdate="CASCADE", ondelete="CASCADE"),
+        nullable=False,
+        index=True)
+    dataset = relationship(
+        Dataset,
+        back_populates="test_managers")
+
+    # Filename and digest of the provided manager.
+    filename = Column(
+        Filename,
+        nullable=False)
+    digest = Column(
         Digest,
         nullable=False)
 

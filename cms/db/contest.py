@@ -283,6 +283,11 @@ class Contest(Base):
         nullable=False,
         default=0)
 
+    allow_frontendv2 = Column(
+        Boolean,
+        nullable=False,
+        default=False)
+
     # These one-to-many relationships are the reversed directions of
     # the ones defined in the "child" classes using foreign keys.
 
@@ -376,3 +381,12 @@ class Announcement(Base):
         nullable=True,
         index=True)
     admin: Admin | None = relationship(Admin)
+
+    task_id = Column(
+        Integer,
+        ForeignKey("tasks.id"),
+        nullable=True,
+        index=True,
+        default=None
+    )
+    task = relationship("Task", back_populates="announcements")

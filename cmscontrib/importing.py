@@ -278,6 +278,8 @@ def update_dataset(old_dataset: Dataset, new_dataset: Dataset, parent=None):
         # Relationships to update (all others).
         Dataset.managers: True,
         Dataset.testcases: True,
+        Dataset.language_templates: True,
+        Dataset.test_managers: True,
     }, parent=parent)
 
 
@@ -294,6 +296,11 @@ def update_task(old_task: Task, new_task: Task, parent=None, get_statements=True
         # Relationships not to update because not provided by the loader.
         Task.active_dataset: False,
         Task.submissions: False,
+        Task.user_evals: False,
+        Task.announcements: False,
+        Task.questions: False,
+        Task.messages: False,
+        Task.memes: True,
         Task.user_tests: False,
         # Relationships to update.
         Task.statements: get_statements,

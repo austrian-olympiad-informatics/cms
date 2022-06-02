@@ -32,7 +32,7 @@ from cms.db import SessionGen, Submission, Dataset, get_submission_results
 from cms.io import Executor, TriggeredService, rpc_method
 from cms.io.priorityqueue import QueueEntry
 from cmscommon.datetime import make_datetime
-from .scoringoperations import ScoringOperation, get_operations
+from .scoringoperations import ScoringOperation, choose_meme, get_operations
 
 
 logger = logging.getLogger(__name__)
@@ -103,6 +103,8 @@ class ScoringExecutor(Executor[ScoringOperation]):
 
             if submission_result.scored_at is None:
                 submission_result.scored_at = make_datetime()
+
+            submission_result.meme = choose_meme(session, submission_result)
 
             # Store it.
             session.commit()

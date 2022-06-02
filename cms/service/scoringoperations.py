@@ -27,10 +27,13 @@ compute sets of operations to do.
 
 from datetime import datetime
 import logging
+import random
+from typing import Optional
+
+from sqlalchemy import or_
 
 from cms.db import Dataset, Submission, SubmissionResult, \
-    Task
-from cms.db.session import Session
+    Task, Session, Meme
 from cms.io import QueueItem
 
 
@@ -106,3 +109,18 @@ class ScoringOperation(QueueItem):
     def to_dict(self):
         return {"submission_id": self.submission_id,
                 "dataset_id": self.dataset_id}
+
+
+def choose_meme(session: Session, sr: SubmissionResult) -> Optional[Meme]:
+    # Could be improved, but this is only run once per result and
+    # there aren't _that_ many memes
+    memes = (
+        session.query(Meme)
+            .filter(or_(Meme.task_id == None, Meme.task_id == sr.submission.task_id))
+            .filter(sr.score >= Meme.min_score)
+            .filter(sr.score <= Meme.max_score)
+            .all()
+    )
+    if not memes:
+        return None
+    return random.choices(memes, weights=[m.factor for m in memes])[0]

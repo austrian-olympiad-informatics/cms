@@ -23,6 +23,7 @@
 import argparse
 import logging
 import sys
+from uuid import uuid4
 
 from cms import utf8_decoder, ServiceCoord
 from cms.db import File, Participation, SessionGen, Submission, Task, User, \
@@ -154,8 +155,8 @@ def add_submission(
             return False
 
         # Create objects in the DB.
-
         submission = Submission(
+            uuid=str(uuid4()),
             timestamp=make_datetime(timestamp),
             language=language_name,
             participation=participation,

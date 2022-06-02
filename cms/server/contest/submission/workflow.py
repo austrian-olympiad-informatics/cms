@@ -30,6 +30,7 @@
 
 from datetime import datetime
 import logging
+from uuid import uuid4
 import typing
 
 if typing.TYPE_CHECKING:
@@ -269,6 +270,7 @@ def accept_submission(
         [file.filename for file in received_files])
 
     submission = Submission(
+        uuid=str(uuid4()),
         timestamp=timestamp,
         opaque_id=Submission.generate_opaque_id(sql_session, participation.id),
         language=language.name if language is not None else None,

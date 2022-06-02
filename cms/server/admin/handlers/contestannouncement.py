@@ -35,7 +35,7 @@ except:
 
 import tornado.web
 
-from cms.db import Contest, Announcement
+from cms.db import Contest, Announcement, Task
 from cmscommon.datetime import make_datetime
 from .base import BaseHandler, require_permission
 
@@ -50,9 +50,12 @@ class AddAnnouncementHandler(BaseHandler):
 
         subject: str = self.get_argument("subject", "")
         text: str = self.get_argument("text", "")
+        task_id = self.get_argument("task_id", "")
+        task = self.safe_get_item(Task, task_id) if task_id else None
         if len(subject) > 0:
             ann = Announcement(make_datetime(), subject, text,
-                               contest=self.contest, admin=self.current_user)
+                               contest=self.contest, admin=self.current_user,
+                               task=task)
             self.sql_session.add(ann)
             self.try_commit()
         else:

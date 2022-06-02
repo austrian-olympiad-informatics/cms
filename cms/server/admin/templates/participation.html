@@ -151,6 +151,15 @@
               Text:
               {{ macro_markdown.markdown_input("message_text") }}
             </div>
+            <div class="notification_task">
+              Task:
+              <select name="task_id" id="new_task" style="width: 100%">
+                <option value="">Global</option>
+                {% for task in contest.tasks %}
+                <option value="{{ task.name }}">{{ task.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
           <input type="submit" value="Send"/>
           {{ macro_markdown.markdown_preview() }}
           </div>
@@ -164,6 +173,13 @@
         <div class="notification_msg">
           <div class="notification_timestamp">{{ msg.timestamp }}</div>
           <div class="notification_subject">{{ msg.subject }}</div>
+          <div class="notification_task">
+            {% if msg.task is not none %}
+              Task: {{ msg.task.name }}
+            {% else %}
+              Task: Global
+            {% endif %}
+          </div>
           <div class="notification_text">{{ msg.text | markdown }}</div>
           <hr>
           <div class="notification_admin_owner">

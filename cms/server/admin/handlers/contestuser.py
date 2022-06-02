@@ -31,6 +31,8 @@
 
 import logging
 
+from cms.db.task import Task
+
 import collections
 try:
     collections.MutableMapping
@@ -275,6 +277,8 @@ class MessageHandler(BaseHandler):
             .filter(Participation.user == user)
             .first()
         )
+        task_id = self.get_argument("task_id", "")
+        task = self.safe_get_item(Task, task_id) if task_id else None
 
         # check that the participation is valid
         if participation is None:
@@ -284,7 +288,8 @@ class MessageHandler(BaseHandler):
                           self.get_argument("message_subject", ""),
                           self.get_argument("message_text", ""),
                           participation=participation,
-                          admin=self.current_user)
+                          admin=self.current_user,
+                          task=task)
         self.sql_session.add(message)
         if self.try_commit():
             logger.info("Message submitted to user %s in contest %s.",
