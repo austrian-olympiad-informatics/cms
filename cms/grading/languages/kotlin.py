@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # Contest Management System - http://cms-dev.github.io/
-# Copyright © 2017 Dario Ostuni <dario.ostuni@gmail.com>
+# Copyright © 2016-2017 Stefano Maggiolo <s.maggiolo@gmail.com>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -16,41 +16,54 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""Rust programming language definition."""
+"""Java programming language definition, using the default JDK installed
+in the system.
 
-from cms.grading import CompiledLanguage
+"""
+
+from shlex import quote as shell_quote
+
+from cms.grading import Language
 
 
-__all__ = ["Rust"]
+__all__ = ["Kotlin"]
 
 
-class Rust(CompiledLanguage):
-    """This defines the Rust programming language, compiled with the
-    standard Rust compiler available in the system.
-
-    """
+class Kotlin(Language):
 
     @property
     def name(self):
         """See Language.name."""
-        return "Rust"
+        return "Kotlin"
 
     @property
     def source_extensions(self):
         """See Language.source_extensions."""
-        return [".rs"]
+        return [".kt"]
+
+    @property
+    def executable_extension(self):
+        """See Language.executable_extension."""
+        return ".jar"
+
+    @property
+    def requires_multithreading(self):
+        """See Language.requires_multithreading."""
+        return True
 
     def get_compilation_commands(self,
                                  source_filenames, executable_filename,
                                  for_evaluation=True):
         """See Language.get_compilation_commands."""
-        # In Rust only the source file containing the main function has
-        # to be passed to the compiler
+        return [
+            ["/usr/bin/kotlinc", "-include-runtime",
+             "-d", executable_filename,
+             *source_filenames]
+        ]
 
-        cmds = []
-        for fn in source_filenames[1:]:
-            if fn != fn.lower():
-                cmds.append(["/bin/mv", fn, fn.lower()])
-
-        cmds += [["/usr/bin/rustc", "-O", "-o", executable_filename, source_filenames[0]]]
-        return cmds
+    def get_evaluation_commands(
+            self, executable_filename, main=None, args=None):
+        """See Language.get_evaluation_commands."""
+        args = args if args is not None else []
+        return [["/usr/bin/java", "-Deval=true", "-Xmx512M", "-Xss128M",
+                 "-jar", executable_filename] + args]
