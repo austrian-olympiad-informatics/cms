@@ -126,6 +126,15 @@
     </tr>
     <tr>
       <td>
+        <span class="info" title="If checked, the v2 frontend can be used with this contest."></span>
+        <label for="allow_frontendv2">Allow Frontend v2</label>
+      </td>
+      <td>
+        <input type="checkbox" id="allow_frontendv2" name="allow_frontendv2" {{ "checked" if contest.allow_frontendv2 else "" }}/>
+      </td>
+    </tr>
+    <tr>
+      <td>
         <span class="info" title="If checked, contestants will be able to autonomously create a user account and a participation in the contest."></span>
         <label for="allow_registration">Allow registration</label>
       </td>

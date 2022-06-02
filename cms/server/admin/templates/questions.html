@@ -50,6 +50,13 @@ utils.show_page("questions", 1);
       </div>
       <div class="notification_subject">{{ msg.subject }}</div>
       <div class="notification_text preserve_line_breaks">{{ msg.text }}</div>
+      <div class="notification_task">
+        {% if msg.task is not none %}
+          Task: {{ msg.task.name }}
+        {% else %}
+          Task: Global
+        {% endif %}
+      </div>
       {% if msg.reply_timestamp is not none %}
       <hr>
       <div class="notification_subject">Reply: {{ msg.reply_subject }}</div>

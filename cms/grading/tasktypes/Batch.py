@@ -203,6 +203,8 @@ class Batch(TaskType):
         if self._uses_grader():
             grader_filename = self.GRADER_BASENAME + source_ext
             if not check_manager_present(job, grader_filename):
+                print(job)
+                print(job.managers)
                 return
             filenames_to_compile.append(grader_filename)
             filenames_and_digests_to_get[grader_filename] = \

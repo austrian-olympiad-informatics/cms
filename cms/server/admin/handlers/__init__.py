@@ -68,7 +68,11 @@ from .dataset import \
     AddTestcaseHandler, \
     AddTestcasesHandler, \
     DeleteTestcaseHandler, \
-    DownloadTestcasesHandler
+    DownloadTestcasesHandler, \
+    AddTestManagerHandler, \
+    DeleteTestManagerHandler, \
+    AddLanguageTemplateHandler, \
+    DeleteLanguageTemplateHandler
 from .main import \
     LoginHandler, \
     LogoutHandler, \
@@ -182,6 +186,10 @@ HANDLERS = [
     (r"/dataset/([0-9]+)/autojudge", ToggleAutojudgeDatasetHandler),
     (r"/dataset/([0-9]+)/managers/add", AddManagerHandler),
     (r"/dataset/([0-9]+)/manager/([0-9]+)/delete", DeleteManagerHandler),
+    (r"/dataset/([0-9]+)/test-managers/add", AddTestManagerHandler),
+    (r"/dataset/([0-9]+)/test-manager/([0-9]+)/delete", DeleteTestManagerHandler),
+    (r"/dataset/([0-9]+)/language-templates/add", AddLanguageTemplateHandler),
+    (r"/dataset/([0-9]+)/languate-template/([0-9]+)/delete", DeleteLanguageTemplateHandler),
     (r"/dataset/([0-9]+)/testcases/add", AddTestcaseHandler),
     (r"/dataset/([0-9]+)/testcases/add_multiple", AddTestcasesHandler),
     (r"/dataset/([0-9]+)/testcase/([0-9]+)/delete", DeleteTestcaseHandler),

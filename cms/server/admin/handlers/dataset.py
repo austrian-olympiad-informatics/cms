@@ -32,6 +32,8 @@ import logging
 import re
 import zipfile
 
+from cms.db.task import LanguageTemplate, TestManager
+
 try:
     import tornado4.web as tornado_web
 except ImportError:
@@ -404,6 +406,150 @@ class DeleteManagerHandler(BaseHandler):
         task_id = dataset.task_id
 
         self.sql_session.delete(manager)
+
+        self.try_commit()
+        self.write("./%d" % task_id)
+
+
+class AddTestManagerHandler(BaseHandler):
+    """Add a test manager to a dataset.
+
+    """
+    @require_permission(BaseHandler.PERMISSION_ALL)
+    def get(self, dataset_id):
+        dataset = self.safe_get_item(Dataset, dataset_id)
+        task = dataset.task
+        self.contest = task.contest
+
+        self.r_params = self.render_params()
+        self.r_params["task"] = task
+        self.r_params["dataset"] = dataset
+        self.render("add_test_manager.html", **self.r_params)
+
+    @require_permission(BaseHandler.PERMISSION_ALL)
+    def post(self, dataset_id):
+        fallback_page = self.url("dataset", dataset_id, "test-managers", "add")
+
+        dataset = self.safe_get_item(Dataset, dataset_id)
+        task = dataset.task
+
+        test_manager = self.request.files["test-manager"][0]
+        task_name = task.name
+        self.sql_session.close()
+
+        try:
+            digest = self.service.file_cacher.put_file_content(
+                test_manager["body"],
+                "Task test manager for %s" % task_name)
+        except Exception as error:
+            self.service.add_notification(
+                make_datetime(),
+                "Test manager storage failed",
+                repr(error))
+            self.redirect(fallback_page)
+            return
+
+        self.sql_session = Session()
+        dataset = self.safe_get_item(Dataset, dataset_id)
+        task = dataset.task
+
+        test_manager = TestManager(test_manager["filename"], digest, dataset=dataset)
+        self.sql_session.add(test_manager)
+
+        if self.try_commit():
+            self.redirect(self.url("task", task.id))
+        else:
+            self.redirect(fallback_page)
+
+
+class DeleteTestManagerHandler(BaseHandler):
+    """Delete a test manager.
+
+    """
+    @require_permission(BaseHandler.PERMISSION_ALL)
+    def delete(self, dataset_id, test_manager_id):
+        test_manager = self.safe_get_item(TestManager, test_manager_id)
+        dataset = self.safe_get_item(Dataset, dataset_id)
+
+        # Protect against URLs providing incompatible parameters.
+        if test_manager.dataset is not dataset:
+            raise tornado_web.HTTPError(404)
+
+        task_id = dataset.task_id
+
+        self.sql_session.delete(test_manager)
+
+        self.try_commit()
+        self.write("./%d" % task_id)
+
+
+class AddLanguageTemplateHandler(BaseHandler):
+    """Add a language template to a dataset.
+
+    """
+    @require_permission(BaseHandler.PERMISSION_ALL)
+    def get(self, dataset_id):
+        dataset = self.safe_get_item(Dataset, dataset_id)
+        task = dataset.task
+        self.contest = task.contest
+
+        self.r_params = self.render_params()
+        self.r_params["task"] = task
+        self.r_params["dataset"] = dataset
+        self.render("add_language_template.html", **self.r_params)
+
+    @require_permission(BaseHandler.PERMISSION_ALL)
+    def post(self, dataset_id):
+        fallback_page = self.url("dataset", dataset_id, "language-templates", "add")
+
+        dataset = self.safe_get_item(Dataset, dataset_id)
+        task = dataset.task
+
+        lt = self.request.files["language-template"][0]
+        task_name = task.name
+        self.sql_session.close()
+
+        try:
+            digest = self.service.file_cacher.put_file_content(
+                lt["body"],
+                "Language template for %s" % task_name)
+        except Exception as error:
+            self.service.add_notification(
+                make_datetime(),
+                "Language template storage failed",
+                repr(error))
+            self.redirect(fallback_page)
+            return
+
+        self.sql_session = Session()
+        dataset = self.safe_get_item(Dataset, dataset_id)
+        task = dataset.task
+
+        lt = LanguageTemplate(lt["filename"], digest, dataset=dataset)
+        self.sql_session.add(lt)
+
+        if self.try_commit():
+            self.redirect(self.url("task", task.id))
+        else:
+            self.redirect(fallback_page)
+
+
+class DeleteLanguageTemplateHandler(BaseHandler):
+    """Delete a language template.
+
+    """
+    @require_permission(BaseHandler.PERMISSION_ALL)
+    def delete(self, dataset_id, lt_id):
+        lt = self.safe_get_item(LanguageTemplate, lt_id)
+        dataset = self.safe_get_item(Dataset, dataset_id)
+
+        # Protect against URLs providing incompatible parameters.
+        if lt.dataset is not dataset:
+            raise tornado_web.HTTPError(404)
+
+        task_id = dataset.task_id
+
+        self.sql_session.delete(lt)
 
         self.try_commit()
         self.write("./%d" % task_id)

@@ -269,6 +269,12 @@ class Participation(Base):
         passive_deletes=True,
         back_populates="participation")
 
+    user_evals = relationship(
+        "UserEval",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        back_populates="participation")
+
     printjobs = relationship(
         "PrintJob",
         cascade="all, delete-orphan",
@@ -357,6 +363,15 @@ class Message(Base):
         index=True)
     admin = relationship(Admin)
 
+    task_id = Column(
+        Integer,
+        ForeignKey("tasks.id"),
+        nullable=True,
+        index=True,
+        default=None
+    )
+    task = relationship("Task", back_populates="messages")
+
 
 class Question(Base):
     """Class to store a private question from the user to the
@@ -428,3 +443,12 @@ class Question(Base):
         nullable=True,
         index=True)
     admin = relationship(Admin)
+
+    task_id = Column(
+        Integer,
+        ForeignKey("tasks.id"),
+        nullable=True,
+        index=True,
+        default=None
+    )
+    task = relationship("Task", back_populates="questions")

@@ -40,6 +40,7 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
 from cms import ServiceCoord, get_service_shards
+from cms.db.usereval import UserEval, UserEvalResult
 from cmscommon.datetime import make_timestamp
 from cms.db import SessionGen, Digest, Dataset, Evaluation, Submission, \
     SubmissionResult, Testcase, UserTest, UserTestResult, get_submissions, \
@@ -48,7 +49,7 @@ from cms.grading.Job import JobGroup
 from cms.io import Executor, TriggeredService, rpc_method
 from .esoperations import ESOperation, get_relevant_operations, \
     get_submissions_operations, get_user_tests_operations, \
-    submission_get_operations, submission_to_evaluate, \
+    submission_get_operations, submission_to_evaluate, user_eval_get_operations, \
     user_test_get_operations
 from .flushingdict import FlushingDict
 from .workerpool import WorkerPool
@@ -233,6 +234,8 @@ class EvaluationService(TriggeredService):
     MAX_EVALUATION_TRIES = 3
     MAX_USER_TEST_COMPILATION_TRIES = 3
     MAX_USER_TEST_EVALUATION_TRIES = 3
+    MAX_USER_EVAL_COMPILATION_TRIES = 2
+    MAX_USER_EVAL_EVALUATION_TRIES = 2
 
     INVALIDATE_COMPILATION = 0
     INVALIDATE_EVALUATION = 1
@@ -341,6 +344,23 @@ class EvaluationService(TriggeredService):
         for dataset in get_datasets_to_judge(user_test.task):
             for operation, priority, timestamp in user_test_get_operations(
                     user_test, dataset):
+                if self.enqueue(operation, priority, timestamp):
+                    new_operations += 1
+
+        return new_operations
+
+    def user_eval_enqueue_operations(self, user_eval: UserEval):
+        """Push in queue the operations required by a user eval.
+
+        user_eval (UserEval): a user eval.
+
+        return (int): the number of actually enqueued operations.
+
+        """
+        new_operations = 0
+        for dataset in get_datasets_to_judge(user_eval.task):
+            for operation, priority, timestamp in user_eval_get_operations(
+                    user_eval, dataset):
                 if self.enqueue(operation, priority, timestamp):
                     new_operations += 1
 
@@ -518,13 +538,22 @@ class EvaluationService(TriggeredService):
                                      "in the database.", object_id)
                         continue
                     object_result = object_.get_result_or_create(dataset)
-                else:
+                elif type_ in [ESOperation.USER_TEST_COMPILATION, ESOperation.USER_TEST_EVALUATION]:
                     object_ = UserTest.get_from_id(object_id, session)
                     if object_ is None:
                         logger.error("Could not find user test %d "
                                      "in the database.", object_id)
                         continue
                     object_result = object_.get_result_or_create(dataset)
+                elif type_ in [ESOperation.USER_EVAL_COMPILATION, ESOperation.USER_EVAL_EVALUATION]:
+                    object_ = UserEval.get_from_id(object_id, session)
+                    if object_ is None:
+                        logger.error("Could not find user eval %d "
+                                     "in the database.", object_id)
+                        continue
+                    object_result = object_.get_result_or_create(dataset)
+                else:
+                    assert False
 
                 self.write_results_one_object_and_type(
                     session, object_result, operation_results)
@@ -571,6 +600,16 @@ class EvaluationService(TriggeredService):
                     user_test_result = UserTestResult.get_from_id(
                         (object_id, dataset_id), session)
                     self.user_test_evaluation_ended(user_test_result)
+                elif type_ == ESOperation.USER_EVAL_COMPILATION:
+                    user_test_result = UserEvalResult.get_from_id(
+                        (object_id, dataset_id), session)
+                    self.user_eval_compilation_ended(user_test_result)
+                elif type_ == ESOperation.USER_EVAL_EVALUATION:
+                    user_test_result = UserEvalResult.get_from_id(
+                        (object_id, dataset_id), session)
+                    self.user_eval_evaluation_ended(user_test_result)
+                else:
+                    assert False
 
         logger.info("Done")
 
@@ -652,6 +691,18 @@ class EvaluationService(TriggeredService):
         elif operation.type_ == ESOperation.USER_TEST_EVALUATION:
             if result.job_success:
                 result.job.to_user_test(object_result)
+            else:
+                object_result.evaluation_tries += 1
+
+        elif operation.type_ == ESOperation.USER_EVAL_COMPILATION:
+            if result.job_success:
+                result.job.to_user_eval(object_result)
+            else:
+                object_result.compilation_tries += 1
+
+        elif operation.type_ == ESOperation.USER_EVAL_EVALUATION:
+            if result.job_success:
+                result.job.to_user_eval(object_result)
             else:
                 object_result.evaluation_tries += 1
 
@@ -821,6 +872,81 @@ class EvaluationService(TriggeredService):
         # Enqueue next steps to be done (e.g., if evaluation failed).
         self.user_test_enqueue_operations(user_test)
 
+    def user_eval_compilation_ended(self, user_eval_result: UserEvalResult):
+        """Actions to be performed when we have a user eval that has
+        ended compilation. In particular: we queue evaluation if
+        compilation was ok; we requeue compilation if it failed.
+
+        user_eval_result (UserEvalResult): the user eval result.
+
+        """
+        user_eval = user_eval_result.user_eval
+
+        # If compilation was ok, we emit a satisfied log message.
+        if user_eval_result.compilation_succeeded():
+            logger.info("User eval %d(%d) was compiled successfully.",
+                        user_eval_result.user_eval_id,
+                        user_eval_result.dataset_id)
+
+        # If instead user eval failed compilation, we don't evaluatate.
+        elif user_eval_result.compilation_failed():
+            logger.info("User eval %d(%d) did not compile.",
+                        user_eval_result.user_eval_id,
+                        user_eval_result.dataset_id)
+
+        # If compilation failed for our fault, we log the error.
+        elif not user_eval_result.compiled():
+            logger.warning("Worker failed when compiling user eval "
+                           "%d(%d).",
+                           user_eval_result.user_eval_id,
+                           user_eval_result.dataset_id)
+            if user_eval_result.compilation_tries >= \
+                    EvaluationService.MAX_USER_EVAL_COMPILATION_TRIES:
+                logger.error("Maximum number of failures reached for the "
+                             "compilation of user eval %d(%d).",
+                             user_eval_result.user_eval_id,
+                             user_eval_result.dataset_id)
+
+        # Otherwise, error.
+        else:
+            logger.error("Compilation outcome %r not recognized.",
+                         user_eval_result.compilation_outcome)
+
+        # Enqueue next steps to be done
+        self.user_eval_enqueue_operations(user_eval)
+
+    def user_eval_evaluation_ended(self, user_eval_result: UserEvalResult):
+        """Actions to be performed when we have a user eval that has
+        been evaluated. In particular: we do nothing on success, we
+        requeue on failure.
+
+        user_eval_result (UserEvalResult): the user eval result.
+
+        """
+        user_eval = user_eval_result.user_eval
+
+        # Evaluation successful, we emit a satisfied log message.
+        if user_eval_result.evaluated():
+            logger.info("User eval %d(%d) was evaluated successfully.",
+                        user_eval_result.user_eval_id,
+                        user_eval_result.dataset_id)
+
+        # Evaluation unsuccessful, we log the error.
+        else:
+            logger.warning("Worker failed when evaluating user eval "
+                           "%d(%d).",
+                           user_eval_result.user_eval_id,
+                           user_eval_result.dataset_id)
+            if user_eval_result.evaluation_tries >= \
+                    EvaluationService.MAX_USER_EVAL_EVALUATION_TRIES:
+                logger.error("Maximum number of failures reached for the "
+                             "evaluation of user eval %d(%d).",
+                             user_eval_result.user_eval_id,
+                             user_eval_result.dataset_id)
+
+        # Enqueue next steps to be done (e.g., if evaluation failed).
+        self.user_eval_enqueue_operations(user_eval)
+
     @rpc_method
     def new_submission(self, submission_id):
         """This RPC prompts ES of the existence of a new
@@ -860,6 +986,28 @@ class EvaluationService(TriggeredService):
                 return
 
             self.user_test_enqueue_operations(user_test)
+
+            session.commit()
+
+    @rpc_method
+    def new_user_eval(self, user_eval_id):
+        """This RPC prompts ES of the existence of a new user eval. ES
+        takes takes the right countermeasures, i.e., it schedules it
+        for compilation.
+
+        user_eval_id (int): the id of the new user eval.
+
+        returns (bool): True if everything went well.
+
+        """
+        with SessionGen() as session:
+            user_eval = UserEval.get_from_id(user_eval_id, session)
+            if user_eval is None:
+                logger.error("[new_user_eval] Couldn't find user eval %d "
+                             "in the database.", user_eval_id)
+                return
+
+            self.user_eval_enqueue_operations(user_eval)
 
             session.commit()
 

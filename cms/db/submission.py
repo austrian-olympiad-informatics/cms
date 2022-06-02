@@ -51,6 +51,13 @@ class Submission(Base):
         Integer,
         primary_key=True)
 
+    uuid = Column(
+        String,
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+
     # User and Contest, thus Participation (id and object) that did the
     # submission.
     participation_id = Column(
@@ -394,6 +401,9 @@ class SubmissionResult(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
         back_populates="submission_result")
+
+    meme_id = Column(Integer, ForeignKey("memes.id"), nullable=True, default=None)
+    meme = relationship("Meme", back_populates="submission_results")
 
     def get_status(self):
         """Return the status of this object.
@@ -750,3 +760,26 @@ class Evaluation(Base):
     def codename(self):
         """Return the codename of the testcase."""
         return self.testcase.codename
+
+
+class Meme(Base):
+    __tablename__ = 'memes'
+    # Auto increment primary key.
+    id = Column(
+        Integer,
+        primary_key=True)
+
+    # Filename and digest of the submitted file.
+    filename = Column(
+        FilenameSchema,
+        nullable=False)
+    digest = Column(
+        Digest,
+        nullable=False)
+
+    min_score = Column(Float, nullable=False)
+    max_score = Column(Float, nullable=False)
+    factor = Column(Float, nullable=False, default=1.0)
+    task_id = Column(Integer, ForeignKey("tasks.id"), nullable=True, default=None)
+    task = relationship(Task, back_populates="memes")
+    submission_results = relationship("SubmissionResult", back_populates="meme")

@@ -153,6 +153,13 @@ function update_additional_answer(element, invoker)
         <div class="notification_timestamp">{{ msg.question_timestamp }}</div>
         <div class="notification_subject">{{ msg.subject }}</div>
         <div class="notification_text preserve_line_breaks">{{ msg.text }}</div>
+        <div class="notification_task">
+          {% if msg.task is not none %}
+            Task: {{ msg.task.name }}
+          {% else %}
+            Task: Global
+          {% endif %}
+        </div>
         {% if msg.reply_timestamp is not none %}
         <div class="notification_subject">Reply. {{ msg.reply_subject }}</div>
         <div class="notification_text preserve_line_breaks">{{ msg.reply_text }}</div>
@@ -213,6 +220,15 @@ function update_additional_answer(element, invoker)
               Text:
               <textarea name="message_text" style="width: 100%" ></textarea>
             </div>
+            <div class="notification_task">
+              Task:
+              <select name="task_id" id="new_task" style="width: 100%">
+                <option value="">Global</option>
+                {% for task in contest.tasks %}
+                <option value="{{ task.name }}">{{ task.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
           <input type="submit" value="Send"/>
           </div>
         </form>
@@ -225,6 +241,13 @@ function update_additional_answer(element, invoker)
         <div class="notification_msg">
           <div class="notification_timestamp">{{ msg.timestamp }}</div>
           <div class="notification_subject">{{ msg.subject }}</div>
+          <div class="notification_task">
+            {% if msg.task is not none %}
+              Task: {{ msg.task.name }}
+            {% else %}
+              Task: Global
+            {% endif %}
+          </div>
           <div class="notification_text preserve_line_breaks">{{ msg.text }}</div>
           <hr>
           <div class="notification_admin_owner">

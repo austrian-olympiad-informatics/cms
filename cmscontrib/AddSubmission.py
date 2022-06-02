@@ -23,6 +23,7 @@
 import argparse
 import logging
 import sys
+from uuid import uuid4
 
 from cms import utf8_decoder, ServiceCoord
 from cms.db import File, Participation, SessionGen, Submission, Task, User, \
@@ -134,7 +135,7 @@ def add_submission(contest_id, username, task_name, timestamp, files):
             return False
 
         # Create objects in the DB.
-        submission = Submission(make_datetime(timestamp), language_name,
+        submission = Submission(str(uuid4()), make_datetime(timestamp), language_name,
                                 participation=participation, task=task)
         for filename, digest in file_digests.items():
             session.add(File(filename, digest, submission=submission))
