@@ -205,6 +205,7 @@ setup(
             "Python 3 / CPython=cms.grading.languages.python3_cpython:Python3CPython",
             "Python 3 / PyPy=cms.grading.languages.python3_pypy:Python3PyPy",
             "Rust=cms.grading.languages.rust:Rust",
+            "Swift=cms.grading.languages.swift:Swift",
             "Go=cms.grading.languages.go:Go",
             "Javascript=cms.grading.languages.javascript:Javascript",
             "Kotlin=cms.grading.languages.kotlin:Kotlin",
