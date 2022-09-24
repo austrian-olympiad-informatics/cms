@@ -101,6 +101,8 @@ class ContestHandler(SimpleContestHandler("contest.html")):
             self.get_bool(attrs, "allow_password_authentication")
             self.get_bool(attrs, "allow_sso_authentication")
             self.get_bool(attrs, "allow_frontendv2")
+            self.get_bool(attrs, "show_global_rank")
+            self.get_bool(attrs, "show_points_to_next_rank")
             self.get_string(attrs, "sso_secret_key")
             self.get_string(attrs, "sso_redirect_url")
             self.get_bool(attrs, "allow_registration")
