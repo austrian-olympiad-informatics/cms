@@ -33,7 +33,8 @@ from cms import ConfigError
 from . import SessionGen, Digest, Contest, Participation, Statement, \
     Attachment, Task, Manager, Dataset, Testcase, Submission, File, \
     SubmissionResult, Executable, UserTest, UserTestFile, UserTestManager, \
-    UserTestResult, UserTestExecutable, PrintJob
+    UserTestResult, UserTestExecutable, PrintJob, LanguageTemplate, \
+    TestManager, UserEval, UserEvalExecutable, UserEvalFile, UserEvalResult
 
 
 logger = logging.getLogger(__name__)
@@ -274,7 +275,7 @@ def get_datasets_to_judge(task):
 
 def enumerate_files(
         session, contest=None,
-        skip_submissions=False, skip_user_tests=False, skip_users=False,
+        skip_submissions=False, skip_user_tests=False, skip_user_evals=False, skip_users=False,
         skip_print_jobs=False, skip_generated=False):
     """Enumerate all the files (by digest) referenced by the
     contest.
@@ -301,6 +302,10 @@ def enumerate_files(
                    .with_entities(Testcase.input))
     queries.append(dataset_q.join(Dataset.testcases)
                    .with_entities(Testcase.output))
+    queries.append(dataset_q.join(Dataset.language_templates)
+                   .with_entities(LanguageTemplate.digest))
+    queries.append(dataset_q.join(Dataset.test_managers)
+                   .with_entities(TestManager.digest))
 
     if not skip_submissions and not skip_users:
         submission_q = task_q.join(Task.submissions)
@@ -327,6 +332,20 @@ def enumerate_files(
             queries.append(user_test_result_q
                            .filter(UserTestResult.output != None)
                            .with_entities(UserTestResult.output))
+
+    if not skip_user_evals and not skip_users:
+        user_eval_q = task_q.join(Task.user_evals)
+        queries.append(user_eval_q.with_entities(UserEval.input))
+        queries.append(user_eval_q.join(UserEval.files)
+                       .with_entities(UserEvalFile.digest))
+
+        if not skip_generated:
+            user_eval_result_q = user_eval_q.join(UserEval.results)
+            queries.append(user_eval_result_q.join(UserEvalResult.executables)
+                           .with_entities(UserEvalExecutable.digest))
+            queries.append(user_eval_result_q
+                           .filter(UserEvalResult.output != None)
+                           .with_entities(UserEvalResult.output))
 
     if not skip_print_jobs and not skip_users:
         queries.append(contest_q.join(Contest.participations)
