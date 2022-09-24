@@ -26,10 +26,11 @@ tombstone digest, to make executables removable in the clean pass.
 """
 
 import argparse
+from datetime import datetime, timedelta
 import logging
 import sys
 
-from cms.db import SessionGen, Digest, Executable, enumerate_files
+from cms.db import SessionGen, Digest, Executable, SubmissionResult, enumerate_files, Submission
 from cms.db.filecacher import FileCacher
 
 
@@ -38,7 +39,15 @@ logger = logging.getLogger()
 
 def make_tombstone(session):
     count = 0
-    for exe in session.query(Executable).all():
+    q = (
+        session.query(Executable)
+            .join(Executable.submission_result)
+            .filter(SubmissionResult.evaluation_outcome.isnot(None))
+            .join(SubmissionResult.submission)
+            .filter(Submission.timestamp < datetime.utcnow() - timedelta(days=1))
+            .all()
+    )
+    for exe in q:
         if exe.digest != Digest.TOMBSTONE:
             count += 1
         exe.digest = Digest.TOMBSTONE
@@ -77,6 +86,8 @@ def main():
     with SessionGen() as session:
         if args.tombstone:
             make_tombstone(session)
+            if not args.dry_run:
+                session.commit()
         clean_files(session, args.dry_run)
         if not args.dry_run:
             session.commit()
