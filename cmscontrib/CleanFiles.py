@@ -30,7 +30,7 @@ from datetime import datetime, timedelta
 import logging
 import sys
 
-from cms.db import SessionGen, Digest, Executable, SubmissionResult, enumerate_files, Submission, UserEvalExecutable, UserEval
+from cms.db import SessionGen, Digest, Executable, SubmissionResult, enumerate_files, Submission, UserEvalExecutable, UserEval, UserEvalResult
 from cms.db.filecacher import FileCacher
 
 
@@ -53,8 +53,8 @@ def make_tombstone(session):
         exe.digest = Digest.TOMBSTONE
     q = (
         session.query(UserEvalExecutable)
-            .join(UserEvalExecutable.user_eval)
-            .filter(UserEval.evaluation_outcome.isnot(None))
+            .join(UserEvalExecutable.user_eval_result)
+            .filter(UserEvalResult.evaluation_outcome.isnot(None))
             .all()
     )
     for exe in q:
