@@ -288,6 +288,9 @@ class Contest(Base):
         nullable=False,
         default=False)
 
+    show_global_rank = Column(Boolean, nullable=False, default=False)
+    show_points_to_next_rank = Column(Boolean, nullable=False, default=False)
+
     # These one-to-many relationships are the reversed directions of
     # the ones defined in the "child" classes using foreign keys.
 
@@ -351,7 +354,8 @@ class Announcement(Base):
     # Time, subject and text of the announcement.
     timestamp: datetime = Column(
         DateTime,
-        nullable=False)
+        nullable=False,
+        index=True)
     subject: str = Column(
         Unicode,
         nullable=False)
