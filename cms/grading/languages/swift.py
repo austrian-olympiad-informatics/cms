@@ -28,4 +28,10 @@ class Swift(CompiledLanguage):
                                  source_filenames, executable_filename,
                                  for_evaluation=True):
         """See Language.get_compilation_commands."""
-        return [["/usr/bin/swiftc", "-O", "-o", executable_filename, *source_filenames]]
+        cmds = []
+        fnames = source_filenames.copy()
+        if fnames[0] != "main.swift":
+            cmds.append(["/bin/mv", fnames[0], "main.swift"])
+            fnames[0] = "main.swift"
+        cmds += [["/usr/bin/swiftc", "-O", "-o", executable_filename, *fnames]]
+        return cmds
