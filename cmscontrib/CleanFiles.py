@@ -30,7 +30,7 @@ from datetime import datetime, timedelta
 import logging
 import sys
 
-from cms.db import SessionGen, Digest, Executable, SubmissionResult, enumerate_files, Submission
+from cms.db import SessionGen, Digest, Executable, SubmissionResult, enumerate_files, Submission, UserEvalExecutable, UserEval
 from cms.db.filecacher import FileCacher
 
 
@@ -51,6 +51,23 @@ def make_tombstone(session):
         if exe.digest != Digest.TOMBSTONE:
             count += 1
         exe.digest = Digest.TOMBSTONE
+    q = (
+        session.query(UserEvalExecutable)
+            .join(UserEvalExecutable.user_eval)
+            .filter(UserEval.evaluation_outcome.isnot(None))
+            .all()
+    )
+    for exe in q:
+        if exe.digest != Digest.TOMBSTONE:
+            count += 1
+        exe.digest = Digest.TOMBSTONE
+    q = (
+        session.query(UserEval)
+            .filter(UserEval.timestamp < datetime.utcnow() - timedelta(minutes=60))
+            .all()
+    )
+    for ue in q:
+        session.delete(ue)
     logger.info("Replaced %d executables with the tombstone.", count)
 
 
