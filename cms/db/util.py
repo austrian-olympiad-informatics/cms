@@ -34,7 +34,8 @@ from . import SessionGen, Digest, Contest, Participation, Statement, \
     Attachment, Task, Manager, Dataset, Testcase, Submission, File, \
     SubmissionResult, Executable, UserTest, UserTestFile, UserTestManager, \
     UserTestResult, UserTestExecutable, PrintJob, LanguageTemplate, \
-    TestManager, UserEval, UserEvalExecutable, UserEvalFile, UserEvalResult
+    TestManager, UserEval, UserEvalExecutable, UserEvalFile, UserEvalResult, \
+    Meme
 
 
 logger = logging.getLogger(__name__)
@@ -296,6 +297,8 @@ def enumerate_files(
     queries.append(task_q.filter(Task.default_input_digest != None).with_entities(Task.default_input_digest))
     queries.append(task_q.join(Task.attachments)
                    .with_entities(Attachment.digest))
+
+    queries.append(session.query(Meme).with_entities(Meme.digest))
 
     dataset_q = task_q.join(Task.datasets)
     queries.append(dataset_q.join(Dataset.managers)
