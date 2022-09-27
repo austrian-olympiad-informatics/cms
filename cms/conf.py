@@ -114,7 +114,7 @@ class Config:
         self.chroot_base_image = None
         # Max processes, CPU time (s), memory (KiB) for compilation runs.
         self.compilation_sandbox_max_processes = 1000
-        self.compilation_sandbox_max_time_s = 10.0
+        self.compilation_sandbox_max_time_s = 20.0
         self.compilation_sandbox_max_memory_kib = 512 * 1024  # 512 MiB
         # Max processes, CPU time (s), memory (KiB) for trusted runs.
         self.trusted_sandbox_max_processes = 1000
