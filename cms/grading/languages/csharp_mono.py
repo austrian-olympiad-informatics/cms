@@ -66,4 +66,4 @@ class CSharpMono(Language):
     def get_evaluation_commands(
             self, executable_filename, main=None, args=None):
         """See Language.get_evaluation_commands."""
-        return [["/usr/bin/mono", executable_filename]]
+        return [["/usr/bin/mono", executable_filename] + args]
