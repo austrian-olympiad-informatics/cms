@@ -202,10 +202,10 @@ class Batch(TaskType):
         # compilation).
         if self._uses_grader():
             grader_filename = self.GRADER_BASENAME + source_ext
-            if not check_manager_present(job, grader_filename):
-                print(job)
-                print(job.managers)
-                return
+            if grader_filename not in job.managers:
+                grader_filename = "stub" + source_ext
+                if not check_manager_present(job, grader_filename):
+                    return
             filenames_to_compile.append(grader_filename)
             filenames_and_digests_to_get[grader_filename] = \
                 job.managers[grader_filename].digest
@@ -263,7 +263,7 @@ class Batch(TaskType):
         main = self.GRADER_BASENAME if self._uses_grader() \
                else os.path.splitext(executable_filename)[0]
         commands = language.get_evaluation_commands(
-            executable_filename, main=main)
+            executable_filename, main=main, args=[])
         executables_to_get = {
             executable_filename: job.executables[executable_filename].digest
         }
