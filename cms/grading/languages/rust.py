@@ -52,5 +52,5 @@ class Rust(CompiledLanguage):
             if fn != fn.lower():
                 cmds.append(["/bin/mv", fn, fn.lower()])
 
-        cmds += [["/usr/bin/rustc", "-O", "-o", executable_filename, source_filenames[0]]]
+        cmds += [["/usr/bin/rustc", "-O", "-Cprefer-dynamic", "-o", executable_filename, source_filenames[0]]]
         return cmds
