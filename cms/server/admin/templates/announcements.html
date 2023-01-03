@@ -22,6 +22,15 @@
               {% endfor %}
             </datalist>
           </div>
+          <div class="notification_task">
+            <label for="new_task">Task</label>
+            <select name="task_id" id="new_task" style="width: 100%">
+              <option value="">Global</option>
+              {% for task in contest.tasks %}
+              <option value="{{ task.name }}">{{ task.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
           <div class="notification_text">
             <label for="new_text">Text</label>
             <textarea name="text" id="new_text" style="width: 100%" ></textarea>

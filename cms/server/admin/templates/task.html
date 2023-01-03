@@ -407,6 +407,48 @@ $("select[name=task_type_{{ dataset.id }}]").change(function() {
             {% endif %}
           </td>
         </tr>
+        <tr>
+          <td>
+            <span class="info" title="Test managers for this task. These are header/source files that will be compiled together for user evaluations."></span>
+            Test Managers
+{% if admin.permission_all %}
+            [<a href="{{ url("dataset", dataset.id, "test-managers", "add") }}">add</a>]
+{% endif %}
+          </td>
+          <td>
+            {% if dataset.test_managers|length == 0 %}
+              No test managers.
+            {% else %}
+              {% for manager in dataset.test_managers.values() %}
+                <div class="manager">
+                  <a href="{{ url("file", manager.digest, manager.filename) }}">{{ manager.filename }}</a>
+                  - <a onclick="CMS.AWSUtils.ajax_delete('{{ url("dataset", dataset.id, "test-manager", manager.id, "delete") }}');">Delete</a>
+                </div>
+              {% endfor %}
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <span class="info" title="Language template for this task. These are the initial file users see in the code editor."></span>
+            Language Templates
+{% if admin.permission_all %}
+            [<a href="{{ url("dataset", dataset.id, "language-templates", "add") }}">add</a>]
+{% endif %}
+          </td>
+          <td>
+            {% if dataset.language_templates|length == 0 %}
+              No language templates.
+            {% else %}
+              {% for lt in dataset.language_templates.values() %}
+                <div class="manager">
+                  <a href="{{ url("file", lt.digest, lt.filename) }}">{{ lt.filename }}</a>
+                  - <a onclick="CMS.AWSUtils.ajax_delete('{{ url("dataset", dataset.id, "language-template", lt.id, "delete") }}');">Delete</a>
+                </div>
+              {% endfor %}
+            {% endif %}
+          </td>
+        </tr>
 
         <tr><td colspan=2><h3>Score type settings (<a href="http://cms.readthedocs.org/en/{{ rtd_version }}/Score%20types.html" target="_blank">documentation</a>)</h3></td></tr>
         <tr>

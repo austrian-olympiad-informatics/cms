@@ -192,8 +192,10 @@ class Communication(TaskType):
         # The stub, that must have been provided (copy and add to compilation).
         if self._uses_stub():
             stub_filename = self.STUB_BASENAME + source_ext
-            if not check_manager_present(job, stub_filename):
-                return
+            if stub_filename not in job.managers:
+                stub_filename = "grader" + source_ext
+                if not check_manager_present(job, stub_filename):
+                    return
             filenames_to_compile.append(stub_filename)
             filenames_and_digests_to_get[stub_filename] = \
                 job.managers[stub_filename].digest

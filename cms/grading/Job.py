@@ -36,7 +36,8 @@ testcase".
 import logging
 
 from cms.db import Dataset, Evaluation, Executable, File, Manager, Submission, \
-    UserTest, UserTestExecutable
+    UserTest, UserTestExecutable, UserEval, UserEvalExecutable
+from cms.db.usereval import UserEvalResult
 from cms.grading.languagemanager import get_language
 from cms.service.esoperations import ESOperation
 
@@ -197,8 +198,8 @@ class Job:
         them perform the operation this object describes.
 
         operation (ESOperation): the operation to use.
-        object_ (Submission|UserTest): the object this operation
-            refers to (might be a submission or a user test).
+        object_ (Submission|UserTest|UserEval): the object this operation
+            refers to (might be a submission, a user test or a user eval).
         dataset (Dataset): the dataset this operation refers to.
 
         return (Job): the job encoding of the operation, as understood
@@ -228,6 +229,10 @@ class Job:
             job = CompilationJob.from_user_test(operation, object_, dataset)
         elif operation.type_ == ESOperation.USER_TEST_EVALUATION:
             job = EvaluationJob.from_user_test(operation, object_, dataset)
+        elif operation.type_ == ESOperation.USER_EVAL_COMPILATION:
+            job = CompilationJob.from_user_eval(operation, object_, dataset)
+        elif operation.type_ == ESOperation.USER_EVAL_EVALUATION:
+            job = EvaluationJob.from_user_eval(operation, object_, dataset)
         return job
 
 
@@ -421,6 +426,89 @@ class CompilationJob(Job):
         ur.compilation_sandbox = ":".join(self.sandboxes)
         for executable in self.executables.values():
             u_executable = UserTestExecutable(
+                executable.filename, executable.digest)
+            ur.executables.set(u_executable)
+
+    @staticmethod
+    def from_user_eval(operation: ESOperation, user_eval: UserEval, dataset: Dataset) -> 'CompilationJob':
+        """Create a CompilationJob from a user eval.
+
+        operation (ESOperation): a USER_EVAL_COMPILATION operation.
+        user_eval (UserEval): the user eval object referred by the
+            operation.
+        dataset (Dataset): the dataset object referred by the
+            operation.
+
+        return (CompilationJob): the job.
+
+        """
+        if operation.type_ != ESOperation.USER_EVAL_COMPILATION:
+            logger.error("Programming error: asking for a user eval "
+                         "compilation job, but the operation is %s.",
+                         operation.type_)
+            raise ValueError("Operation is not a user eval compilation")
+
+        multithreaded = _is_contest_multithreaded(user_eval.task.contest)
+
+        # Add the managers to be got from the Task.
+        # dict() is required to detach the dictionary that gets added
+        # to the Job from the control of SQLAlchemy
+        try:
+            language = get_language(user_eval.language)
+        except KeyError:
+            language = None
+
+        task_type_str = "Batch"
+        task_type_params = [
+            "grader" if dataset.test_managers else "alone",
+            ["", ""],
+            "diff"
+        ]
+
+        managers = {}
+
+        if language is not None:
+            for manager_filename in dataset.test_managers:
+                if any(manager_filename.endswith(header)
+                       for header in language.header_extensions + language.source_extensions):
+                    managers[manager_filename] = \
+                        dataset.test_managers[manager_filename]
+
+        return CompilationJob(
+            operation=operation,
+            task_type=task_type_str,
+            task_type_parameters=task_type_params,
+            language=user_eval.language,
+            multithreaded_sandbox=multithreaded,
+            files=dict(user_eval.files),
+            managers=managers,
+            info="compile user eval %d" % (user_eval.id)
+        )
+
+    def to_user_eval(self, ur: UserEvalResult):
+        """Fill detail of the user eval result with the job result.
+
+        ur (UserEvalResult): the DB object to fill.
+
+        """
+        # This should actually be useless.
+        ur.invalidate_compilation()
+
+        # No need to check self.success because this method gets called
+        # only if it is True.
+
+        ur.set_compilation_outcome(self.compilation_success)
+        ur.compilation_text = self.text
+        ur.compilation_stdout = self.plus.get('stdout')
+        ur.compilation_stderr = self.plus.get('stderr')
+        ur.compilation_time = self.plus.get('execution_time')
+        ur.compilation_wall_clock_time = \
+            self.plus.get('execution_wall_clock_time')
+        ur.compilation_memory = self.plus.get('execution_memory')
+        ur.compilation_shard = self.shard
+        ur.compilation_sandbox = ":".join(self.sandboxes)
+        for executable in self.executables.values():
+            u_executable = UserEvalExecutable(
                 executable.filename, executable.digest)
             ur.executables.set(u_executable)
 
@@ -650,6 +738,79 @@ class EvaluationJob(Job):
         ur.evaluation_sandbox = ":".join(self.sandboxes)
         ur.output = self.user_output
 
+    @staticmethod
+    def from_user_eval(operation: ESOperation, user_eval: UserEval, dataset: Dataset) -> 'EvaluationJob':
+        """Create an EvaluationJob from a user eval.
+
+        operation (ESOperation): an USER_EVAL_EVALUATION operation.
+        user_eval (UserEval): the user eval object referred by the
+            operation.
+        dataset (Dataset): the dataset object referred by the
+            operation.
+
+        return (EvaluationJob): the job.
+
+        """
+        if operation.type_ != ESOperation.USER_EVAL_EVALUATION:
+            logger.error("Programming error: asking for a user eval "
+                         "evaluation job, but the operation is %s.",
+                         operation.type_)
+            raise ValueError("Operation is not a user eval evaluation")
+
+        multithreaded = _is_contest_multithreaded(user_eval.task.contest)
+
+        user_eval_result: UserEvalResult = user_eval.get_result(dataset)
+        # This should have been created by now.
+        assert user_eval_result is not None
+
+        task_type_str = "Batch"
+        task_type_params = [
+            "grader" if dataset.test_managers else "alone",
+            ["", ""],
+            "diff"
+        ]
+
+        managers = dict(dataset.test_managers)
+
+        return EvaluationJob(
+            operation=operation,
+            task_type=task_type_str,
+            task_type_parameters=task_type_params,
+            language=user_eval.language,
+            multithreaded_sandbox=multithreaded,
+            files=dict(user_eval.files),
+            managers=managers,
+            executables=dict(user_eval_result.executables),
+            input=user_eval.input,
+            time_limit=dataset.time_limit,
+            memory_limit=dataset.memory_limit,
+            info="evaluate user eval %d" % (user_eval.id),
+            get_output=True,
+            only_execution=True
+        )
+
+    def to_user_eval(self, ur: UserEvalResult):
+        """Fill detail of the user eval result with the job result.
+
+        ur (UserEvalResult): the DB object to fill.
+
+        """
+        # This should actually be useless.
+        ur.invalidate_evaluation()
+
+        # No need to check self.success because this method gets called
+        # only if it is True.
+
+        ur.evaluation_text = self.text
+        ur.set_evaluation_outcome()
+        ur.execution_time = self.plus.get('execution_time')
+        ur.execution_wall_clock_time = \
+            self.plus.get('execution_wall_clock_time')
+        ur.execution_memory = self.plus.get('execution_memory')
+        ur.evaluation_shard = self.shard
+        ur.evaluation_sandbox = ":".join(self.sandboxes)
+        ur.output = self.user_output
+
 
 class JobGroup:
     """A simple collection of jobs."""
@@ -677,8 +838,10 @@ class JobGroup:
             # object exists there), which thus acts as a cache.
             if operation.for_submission():
                 object_ = Submission.get_from_id(operation.object_id, session)
-            else:
+            elif operation.for_user_test():
                 object_ = UserTest.get_from_id(operation.object_id, session)
+            else:
+                object_ = UserEval.get_from_id(operation.object_id, session)
             dataset = Dataset.get_from_id(operation.dataset_id, session)
 
             jobs.append(Job.from_operation(operation, object_, dataset))

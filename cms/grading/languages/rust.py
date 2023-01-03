@@ -46,5 +46,11 @@ class Rust(CompiledLanguage):
         """See Language.get_compilation_commands."""
         # In Rust only the source file containing the main function has
         # to be passed to the compiler
-        return [["/usr/bin/rustc", "-O", "-o",
-                 executable_filename, source_filenames[0]]]
+
+        cmds = []
+        for fn in source_filenames[1:]:
+            if fn != fn.lower():
+                cmds.append(["/bin/mv", fn, fn.lower()])
+
+        cmds += [["/usr/bin/rustc", "-O", "-Cprefer-dynamic", "-o", executable_filename, source_filenames[0]]]
+        return cmds

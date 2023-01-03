@@ -31,7 +31,7 @@ from cms import ServiceCoord, config
 from cms.db import SessionGen, Submission, Dataset, get_submission_results
 from cms.io import Executor, TriggeredService, rpc_method
 from cmscommon.datetime import make_datetime
-from .scoringoperations import ScoringOperation, get_operations
+from .scoringoperations import ScoringOperation, choose_meme, get_operations
 
 
 logger = logging.getLogger(__name__)
@@ -99,6 +99,8 @@ class ScoringExecutor(Executor):
                 submission_result.public_score_details, \
                 submission_result.ranking_score_details = \
                 score_type.compute_score(submission_result)
+
+            submission_result.meme = choose_meme(session, submission_result)
 
             # Store it.
             session.commit()

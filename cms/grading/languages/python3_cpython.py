@@ -56,23 +56,28 @@ class Python3CPython(CompiledLanguage):
                                  for_evaluation=True):
         """See Language.get_compilation_commands."""
 
-        commands = []
+        cmds = []
         files_to_package = []
-        commands.append(["/usr/bin/python3", "-m", "compileall", "-b", "."])
+
+        for fn in source_filenames:
+            if fn != fn.lower():
+                cmds.append(["/bin/mv", fn, fn.lower()])
+
+        cmds.append(["/usr/bin/python3", "-m", "compileall", "-b", "."])
         for idx, source_filename in enumerate(source_filenames):
-            basename = os.path.splitext(os.path.basename(source_filename))[0]
+            basename = os.path.splitext(os.path.basename(source_filename))[0].lower()
             pyc_filename = "%s.pyc" % basename
             # The file with the entry point must be in first position.
             if idx == 0:
-                commands.append(["/bin/mv", pyc_filename, self.MAIN_FILENAME])
+                cmds.append(["/bin/mv", pyc_filename, self.MAIN_FILENAME])
                 files_to_package.append(self.MAIN_FILENAME)
             else:
                 files_to_package.append(pyc_filename)
 
-        commands.append(["/usr/bin/zip", executable_filename]
+        cmds.append(["/usr/bin/zip", executable_filename]
                         + files_to_package)
 
-        return commands
+        return cmds
 
     def get_evaluation_commands(
             self, executable_filename, main=None, args=None):

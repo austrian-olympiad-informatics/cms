@@ -33,7 +33,8 @@ from .main import \
     StartHandler, \
     NotificationsHandler, \
     PrintingHandler, \
-    DocumentationHandler
+    DocumentationHandler, \
+    SSOHandler
 from .task import \
     TaskDescriptionHandler, \
     TaskStatementViewHandler, \
@@ -59,6 +60,7 @@ HANDLERS = [
     # Main
 
     (r"/login", LoginHandler),
+    (r"/sso/authorized", SSOHandler),
     (r"/logout", LogoutHandler),
     (r"/register", RegistrationHandler),
     (r"/start", StartHandler),

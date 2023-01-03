@@ -16,37 +16,35 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""C# programming language definition, using the mono compiler "mcs"
-and runtime "mono" installed in the system.
+"""Java programming language definition, using the default JDK installed
+in the system.
 
 """
+
+from shlex import quote as shell_quote
 
 from cms.grading import Language
 
 
-__all__ = ["CSharpMono"]
+__all__ = ["Kotlin"]
 
 
-class CSharpMono(Language):
-    """This defines the C# programming language, compiled with the mono
-    compiler "mcs" and executed with the runtime "mono".
-
-    """
+class Kotlin(Language):
 
     @property
     def name(self):
         """See Language.name."""
-        return "C# / Mono"
+        return "Kotlin"
 
     @property
     def source_extensions(self):
         """See Language.source_extensions."""
-        return [".cs"]
+        return [".kt"]
 
     @property
     def executable_extension(self):
         """See Language.executable_extension."""
-        return ".exe"
+        return ".jar"
 
     @property
     def requires_multithreading(self):
@@ -57,13 +55,15 @@ class CSharpMono(Language):
                                  source_filenames, executable_filename,
                                  for_evaluation=True):
         """See Language.get_compilation_commands."""
-        compile_command = ["/usr/bin/mcs",
-                           "-out:" + executable_filename,
-                           "-optimize+"]
-        compile_command += source_filenames
-        return [compile_command]
+        return [
+            ["/usr/bin/kotlinc", "-include-runtime",
+             "-d", executable_filename,
+             *source_filenames]
+        ]
 
     def get_evaluation_commands(
             self, executable_filename, main=None, args=None):
         """See Language.get_evaluation_commands."""
-        return [["/usr/bin/mono", executable_filename] + args]
+        args = args if args is not None else []
+        return [["/usr/bin/java", "-Deval=true", "-Xmx512M", "-Xss128M",
+                 "-jar", executable_filename] + args]

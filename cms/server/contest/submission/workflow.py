@@ -28,6 +28,7 @@
 """Procedures used by CWS to accept submissions and user tests."""
 
 import logging
+from uuid import uuid4
 
 from cms import config
 from cms.db import Submission, File, UserTestManager, UserTestFile, UserTest
@@ -196,6 +197,7 @@ def accept_submission(sql_session, file_cacher, participation, task, timestamp,
                 participation.user.username)
 
     submission = Submission(
+        uuid=str(uuid4()),
         timestamp=timestamp,
         language=language.name if language is not None else None,
         task=task,

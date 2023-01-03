@@ -31,7 +31,7 @@ import logging
 from sqlalchemy import case, literal
 
 from cms.db import Dataset, Evaluation, Submission, SubmissionResult, \
-    Task, Testcase, UserTest, UserTestResult
+    Task, Testcase, UserTest, UserTestResult, UserEval, UserEvalResult
 from cms.io import PriorityQueue, QueueItem
 
 
@@ -71,6 +71,21 @@ FILTER_USER_TEST_RESULTS_TO_EVALUATE = (
     UserTestResult.filter_compilation_succeeded() &
     (~UserTestResult.filter_evaluated()) &
     (UserTestResult.evaluation_tries < MAX_EVALUATION_TRIES)
+)
+
+
+FILTER_USER_EVAL_DATASETS_TO_JUDGE = (
+    (Dataset.id == Task.active_dataset_id) |
+    (Dataset.autojudge.is_(True))
+)
+FILTER_USER_EVAL_RESULTS_TO_COMPILE = (
+    (~UserEvalResult.filter_compiled()) &
+    (UserEvalResult.compilation_tries < MAX_COMPILATION_TRIES)
+)
+FILTER_USER_EVAL_RESULTS_TO_EVALUATE = (
+    UserEvalResult.filter_compilation_succeeded() &
+    (~UserEvalResult.filter_evaluated()) &
+    (UserEvalResult.evaluation_tries < MAX_EVALUATION_TRIES)
 )
 
 
@@ -143,6 +158,34 @@ def user_test_to_evaluate(user_test_result):
 
     """
     r = user_test_result
+    return r is not None and r.compilation_outcome == "ok" and \
+        not r.evaluated() and \
+        r.evaluation_tries < MAX_USER_TEST_EVALUATION_TRIES
+
+
+def user_eval_to_compile(user_eval_result):
+    """Return whether ES is interested in compiling the user eval.
+
+    user_eval_result (UserEvalResult): a user eval result.
+
+    return (bool): True if ES wants to compile the user eval.
+
+    """
+    r = user_eval_result
+    return r is None or \
+        (not r.compiled() and
+         r.compilation_tries < MAX_USER_TEST_COMPILATION_TRIES)
+
+
+def user_eval_to_evaluate(user_eval_result):
+    """Return whether ES is interested in evaluating the user test.
+
+    user_eval_result (UserEvalResult): a user test result.
+
+    return (bool): True if ES wants to evaluate the user test.
+
+    """
+    r = user_eval_result
     return r is not None and r.compilation_outcome == "ok" and \
         not r.evaluated() and \
         r.evaluation_tries < MAX_USER_TEST_EVALUATION_TRIES
@@ -239,6 +282,49 @@ def user_test_get_operations(user_test, dataset):
                           dataset.id), \
             priority, \
             user_test.timestamp
+
+
+def user_eval_get_operations(user_eval, dataset):
+    """Generate all operations originating from a user eval for a given
+    dataset.
+
+    user_eval (UserEval): a user eval;
+    dataset (Dataset): a dataset.
+
+    yield (ESOperation, int, datetime): an iterator providing triplets
+        consisting of a ESOperation for a certain operation to
+        perform, its priority and its timestamp.
+
+    """
+    user_eval_result = user_eval.get_result(dataset)
+    if user_eval_to_compile(user_eval_result):
+        if not dataset.active:
+            priority = PriorityQueue.PRIORITY_EXTRA_LOW
+        elif user_eval_result is None or \
+                user_eval_result.compilation_tries == 0:
+            priority = PriorityQueue.PRIORITY_LOW
+        else:
+            priority = PriorityQueue.PRIORITY_EXTRA_LOW
+
+        yield ESOperation(ESOperation.USER_EVAL_COMPILATION,
+                          user_eval.id,
+                          dataset.id), \
+            priority, \
+            user_eval.timestamp
+
+    elif user_eval_to_evaluate(user_eval_result):
+        if not dataset.active:
+            priority = PriorityQueue.PRIORITY_EXTRA_LOW
+        elif user_eval_result.evaluation_tries == 0:
+            priority = PriorityQueue.PRIORITY_LOW
+        else:
+            priority = PriorityQueue.PRIORITY_EXTRA_LOW
+
+        yield ESOperation(ESOperation.USER_EVAL_EVALUATION,
+                          user_eval.id,
+                          dataset.id), \
+            priority, \
+            user_eval.timestamp
 
 
 def get_relevant_operations(level, submissions, dataset_id=None):
@@ -489,12 +575,113 @@ def get_user_tests_operations(session, contest_id=None):
     return operations
 
 
+def get_user_evals_operations(session, contest_id=None):
+    """Return all the operations to do for user evals in the contest.
+
+    session (Session): the database session to use.
+    contest_id (int|None): the contest for which we want the operations.
+        If none, get operations for any contest.
+
+    return ([ESOperation, float, int]): a list of operation, timestamp
+        and priority.
+
+    """
+    operations = []
+
+    if contest_id is None:
+        contest_filter = literal(True)
+    else:
+        contest_filter = Task.contest_id == contest_id
+
+    # Retrieve the compilation operations for all user evals without
+    # the corresponding result for a dataset to judge. Since we have
+    # no UserEvalResult, we cannot join regularly with dataset;
+    # instead we take the cartesian product with all the datasets for
+    # the correct task.
+    to_compile = session.query(UserEval)\
+        .join(UserEval.task)\
+        .join(Task.datasets)\
+        .outerjoin(UserEvalResult,
+                   (Dataset.id == UserEvalResult.dataset_id) &
+                   (UserEval.id == UserEvalResult.user_eval_id))\
+        .filter(
+            contest_filter &
+            (FILTER_USER_EVAL_DATASETS_TO_JUDGE) &
+            (UserEvalResult.dataset_id.is_(None)))\
+        .with_entities(UserEval.id, Dataset.id,
+                       case([
+                           (Dataset.id != Task.active_dataset_id,
+                            literal(PriorityQueue.PRIORITY_EXTRA_LOW))
+                           ], else_=literal(PriorityQueue.PRIORITY_HIGH)),
+                       UserEval.timestamp)\
+        .all()
+
+    # Retrieve all the compilation operations for user_evals
+    # already having a result for a dataset to judge.
+    to_compile += session.query(UserEval)\
+        .join(UserEval.task)\
+        .join(UserEval.results)\
+        .join(UserEvalResult.dataset)\
+        .filter(
+            contest_filter &
+            (FILTER_USER_EVAL_DATASETS_TO_JUDGE) &
+            (FILTER_USER_EVAL_RESULTS_TO_COMPILE))\
+        .with_entities(UserEval.id, Dataset.id,
+                       case([
+                           (Dataset.id != Task.active_dataset_id,
+                            literal(PriorityQueue.PRIORITY_EXTRA_LOW)),
+                           (UserEvalResult.compilation_tries == 0,
+                            literal(PriorityQueue.PRIORITY_HIGH))
+                           ], else_=literal(PriorityQueue.PRIORITY_MEDIUM)),
+                       UserEval.timestamp)\
+        .all()
+
+    for data in to_compile:
+        user_eval_id, dataset_id, priority, timestamp = data
+        operations.append((
+            ESOperation(ESOperation.USER_EVAL_COMPILATION,
+                        user_eval_id, dataset_id),
+            priority, timestamp))
+
+    # Retrieve all the evaluation operations for a dataset to judge,
+    # that is, all pairs (user_eval, dataset) for which we have a
+    # user eval result which is compiled but not evaluated.
+    to_evaluate = session.query(UserEval)\
+        .join(UserEval.task)\
+        .join(UserEval.results)\
+        .join(UserEvalResult.dataset)\
+        .filter(
+            contest_filter &
+            (FILTER_USER_EVAL_DATASETS_TO_JUDGE) &
+            (FILTER_USER_EVAL_RESULTS_TO_EVALUATE))\
+        .with_entities(UserEval.id, Dataset.id,
+                       case([
+                           (Dataset.id != Task.active_dataset_id,
+                            literal(PriorityQueue.PRIORITY_EXTRA_LOW)),
+                           (UserEvalResult.evaluation_tries == 0,
+                            literal(PriorityQueue.PRIORITY_MEDIUM))
+                           ], else_=literal(PriorityQueue.PRIORITY_LOW)),
+                       UserEval.timestamp)\
+        .all()
+
+    for data in to_evaluate:
+        user_eval_id, dataset_id, priority, timestamp = data
+        operations.append((
+            ESOperation(
+                ESOperation.USER_EVAL_EVALUATION, user_eval_id, dataset_id),
+            priority, timestamp))
+
+    return operations
+
+
 class ESOperation(QueueItem):
 
     COMPILATION = "compile"
     EVALUATION = "evaluate"
     USER_TEST_COMPILATION = "compile_test"
     USER_TEST_EVALUATION = "evaluate_test"
+    USER_EVAL_COMPILATION = "compile_eval"
+    USER_EVAL_EVALUATION = "evaluate_eval"
 
     # Testcase codename is only needed for EVALUATION type of operation
     def __init__(self, type_, object_id, dataset_id, testcase_codename=None):
@@ -549,6 +736,15 @@ class ESOperation(QueueItem):
         """
         return self.type_ == ESOperation.COMPILATION or \
             self.type_ == ESOperation.EVALUATION
+
+    def for_user_test(self):
+        """Return if the operation is for a user test.
+
+        return (bool): True if this operation is for a user test.
+
+        """
+        return self.type_ == ESOperation.USER_TEST_COMPILATION or \
+            self.type_ == ESOperation.USER_TEST_EVALUATION
 
     def to_dict(self):
         return {

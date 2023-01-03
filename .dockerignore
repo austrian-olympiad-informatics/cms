@@ -16,3 +16,6 @@ log/
 /venv/
 /config/rootfs/
 /docker-data/
+.git
+/isolate/*.o
+/isolate/isolate

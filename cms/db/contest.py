@@ -111,6 +111,18 @@ class Contest(Base):
         nullable=False,
         default=True)
 
+    # Whether to allow sso authentication
+    allow_sso_authentication = Column(
+        Boolean,
+        nullable=False,
+        default=False)
+
+    sso_secret_key = Column(
+        String, nullable=False, default="")
+
+    sso_redirect_url = Column(
+        String, nullable=False, default="")
+
     # Whether the registration of new users is enabled.
     allow_registration = Column(
         Boolean,
@@ -258,6 +270,14 @@ class Contest(Base):
         nullable=False,
         default=0)
 
+    allow_frontendv2 = Column(
+        Boolean,
+        nullable=False,
+        default=False)
+
+    show_global_rank = Column(Boolean, nullable=False, default=False)
+    show_points_to_next_rank = Column(Boolean, nullable=False, default=False)
+
     # These one-to-many relationships are the reversed directions of
     # the ones defined in the "child" classes using foreign keys.
 
@@ -322,7 +342,8 @@ class Announcement(Base):
     # Time, subject and text of the announcement.
     timestamp = Column(
         DateTime,
-        nullable=False)
+        nullable=False,
+        index=True)
     subject = Column(
         Unicode,
         nullable=False)
@@ -352,3 +373,12 @@ class Announcement(Base):
         nullable=True,
         index=True)
     admin = relationship(Admin)
+
+    task_id = Column(
+        Integer,
+        ForeignKey("tasks.id"),
+        nullable=True,
+        index=True,
+        default=None
+    )
+    task = relationship("Task", back_populates="announcements")

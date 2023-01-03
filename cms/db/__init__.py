@@ -60,12 +60,16 @@ __all__ = [
     "Admin",
     # task
     "Task", "Statement", "Attachment", "Dataset", "Manager", "Testcase",
+    "LanguageTemplate", "TestManager",
     # submission
     "Submission", "File", "Token", "SubmissionResult", "Executable",
-    "Evaluation",
+    "Evaluation", "Meme",
     # usertest
     "UserTest", "UserTestFile", "UserTestManager", "UserTestResult",
     "UserTestExecutable",
+    # usereval
+    "UserEval", "UserEvalFile", "UserEvalResult",
+    "UserEvalExecutable",
     # printjob
     "PrintJob",
     # init
@@ -98,11 +102,13 @@ from .fsobject import FSObject, LargeObject
 from .admin import Admin
 from .contest import Contest, Announcement
 from .user import User, Team, Participation, Message, Question
-from .task import Task, Statement, Attachment, Dataset, Manager, Testcase
+from .task import Task, Statement, Attachment, Dataset, Manager, Testcase, \
+    LanguageTemplate, TestManager
 from .submission import Submission, File, Token, SubmissionResult, \
-    Executable, Evaluation
+    Executable, Evaluation, Meme
 from .usertest import UserTest, UserTestFile, UserTestManager, \
     UserTestResult, UserTestExecutable
+from .usereval import UserEval, UserEvalFile, UserEvalResult, UserEvalExecutable
 from .printjob import PrintJob
 
 from .init import init_db

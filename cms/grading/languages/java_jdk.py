@@ -66,8 +66,9 @@ class JavaJDK(Language):
         # a class file for each inner class.
         if JavaJDK.USE_JAR:
             jar_command = ["/bin/sh", "-c",
-                           " ".join(["jar", "cf",
+                           " ".join(["jar", "-cvfe",
                                      shell_quote(executable_filename),
+                                     source_filenames[0][:-5],
                                      "*.class"])]
             return [compile_command, jar_command]
         else:
@@ -85,7 +86,7 @@ class JavaJDK(Language):
             # executable_filename is a jar file, main is the name of
             # the main java class
             return [["/usr/bin/java", "-Deval=true", "-Xmx512M", "-Xss128M",
-                     "-cp", executable_filename, main] + args]
+                     "-jar", executable_filename] + args]
         else:
             unzip_command = ["/usr/bin/unzip", executable_filename]
             command = ["/usr/bin/java", "-Deval=true", "-Xmx512M", "-Xss128M",
