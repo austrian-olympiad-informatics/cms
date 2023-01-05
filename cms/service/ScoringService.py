@@ -125,8 +125,7 @@ class ScoringExecutor(Executor[ScoringOperation]):
 
                 for idx, score in st_datas.items():
                     st_score = SubtaskScore(
-                        submission_id=submission_result.submission_id,
-                        dataset_id=submission_result.dataset_id,
+                        submission_result=submission_result,
                         subtask_idx=idx,
                         score=score,
                     )
