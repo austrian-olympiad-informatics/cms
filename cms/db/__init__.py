@@ -63,7 +63,7 @@ __all__ = [
     "LanguageTemplate", "TestManager",
     # submission
     "Submission", "File", "Token", "SubmissionResult", "Executable",
-    "Evaluation", "Meme",
+    "Evaluation", "Meme", "SubtaskScore",
     # usertest
     "UserTest", "UserTestFile", "UserTestManager", "UserTestResult",
     "UserTestExecutable",
@@ -105,7 +105,7 @@ from .user import User, Team, Participation, Message, Question
 from .task import Task, Statement, Attachment, Dataset, Manager, Testcase, \
     LanguageTemplate, TestManager
 from .submission import Submission, File, Token, SubmissionResult, \
-    Executable, Evaluation, Meme
+    Executable, Evaluation, Meme, SubtaskScore
 from .usertest import UserTest, UserTestFile, UserTestManager, \
     UserTestResult, UserTestExecutable
 from .usereval import UserEval, UserEvalFile, UserEvalResult, UserEvalExecutable
