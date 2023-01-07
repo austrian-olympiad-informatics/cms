@@ -911,6 +911,7 @@ class IsolateSandbox(SandboxBase):
         self.address_space = None      # -m
         self.stdout_file = None        # -o
         self.stderr_file = None        # -r
+        self.stderr_to_stdout = False  # --stderr-to-stdout
         self.timeout = None            # -t
         self.verbosity = 0             # -v
         self.wallclock_timeout = None  # -w
@@ -1123,6 +1124,8 @@ class IsolateSandbox(SandboxBase):
             res += ["--processes"]
         if self.stderr_file is not None:
             res += ["--stderr=%s" % self.inner_absolute_path(self.stderr_file)]
+        if self.stderr_to_stdout:
+            res += ["--stderr-to-stdout"]
         if self.timeout is not None:
             res += ["--time=%g" % self.timeout]
         res += ["--verbose"] * self.verbosity

@@ -86,7 +86,7 @@ def evaluation_step(sandbox, commands,
                     time_limit=None, memory_limit=None,
                     dirs_map=None, writable_files=None,
                     stdin_redirect=None, stdout_redirect=None,
-                    multiprocess=False):
+                    multiprocess=False, stderr_to_stdout=False):
     """Execute some evaluation commands in the sandbox.
 
     Execute the commands sequentially in the (already created) sandbox, after
@@ -133,7 +133,7 @@ def evaluation_step(sandbox, commands,
         success = evaluation_step_before_run(
             sandbox, command, time_limit, memory_limit,
             dirs_map, writable_files, stdin_redirect, stdout_redirect,
-            multiprocess, wait=True)
+            multiprocess, wait=True, stderr_to_stdout=stderr_to_stdout)
         if not success:
             logger.debug("Job failed in evaluation_step_before_run.")
             return False, None, None
@@ -149,7 +149,7 @@ def evaluation_step_before_run(sandbox, command,
                                time_limit=None, memory_limit=None,
                                dirs_map=None, writable_files=None,
                                stdin_redirect=None, stdout_redirect=None,
-                               multiprocess=False, wait=False):
+                               multiprocess=False, wait=False, stderr_to_stdout=False):
     """First part of an evaluation step, up to the execution, included.
 
     See evaluation_step for the meaning of the common arguments. This version
@@ -194,7 +194,10 @@ def evaluation_step_before_run(sandbox, command,
 
     sandbox.stdin_file = stdin_redirect
     sandbox.stdout_file = stdout_redirect
-    sandbox.stderr_file = "stderr.txt"
+    if stderr_to_stdout:
+        sandbox.stderr_to_stdout = True
+    else:
+        sandbox.stderr_file = "stderr.txt"
 
     for src, (dest, options) in dirs_map.items():
         sandbox.add_mapped_directory(src, dest=dest, options=options)

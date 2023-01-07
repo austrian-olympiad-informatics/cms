@@ -303,7 +303,8 @@ class Batch(TaskType):
             writable_files=files_allowing_write,
             stdin_redirect=stdin_redirect,
             stdout_redirect=stdout_redirect,
-            multiprocess=job.multithreaded_sandbox)
+            multiprocess=job.multithreaded_sandbox,
+            stderr_to_stdout=job.only_execution)
 
         outcome = None
         text = None
