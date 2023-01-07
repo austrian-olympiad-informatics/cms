@@ -316,8 +316,11 @@ class Batch(TaskType):
         elif not evaluation_success:
             outcome = 0.0
             text = human_evaluation_message(stats)
-            if job.get_output:
-                job.user_output = None
+            if job.get_output and sandbox.file_exists(self._actual_output):
+                job.user_output = sandbox.get_file_to_storage(
+                    self._actual_output,
+                    "Output file in job %s" % job.info,
+                    trunc_len=100 * 1024)
 
         # Otherwise, advance to checking the solution
         else:
