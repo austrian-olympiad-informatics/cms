@@ -105,6 +105,8 @@ class ScoringExecutor(Executor[ScoringOperation]):
                 submission_result.scored_at = make_datetime()
 
             submission_result.subtask_scores = []
+            session.commit()
+
             if (
                 submission_result.score_details is not None and
                 # did not compile
