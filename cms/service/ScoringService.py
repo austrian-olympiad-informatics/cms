@@ -101,6 +101,8 @@ class ScoringExecutor(Executor):
                 score_type.compute_score(submission_result)
 
             submission_result.subtask_scores = []
+            session.commit()
+
             if (
                 submission_result.score_details is not None and
                 # did not compile
