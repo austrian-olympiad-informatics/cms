@@ -25,8 +25,7 @@ filters, tests, etc. that are useful for generic global usage.
 """
 
 from datetime import datetime, timedelta, tzinfo
-from jinja2 import Environment, StrictUndefined, contextfilter, \
-    contextfunction, environmentfunction
+from jinja2 import Environment, StrictUndefined, pass_context, pass_environment
 from jinja2.runtime import Context
 import markdown_it
 import markupsafe
