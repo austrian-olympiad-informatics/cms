@@ -1,5 +1,5 @@
 # Only for testing
-beautifulsoup4>=4.8,<4.9
+beautifulsoup4>=4.8,<4.12
 coverage>=4.5,<4.6
 
 # Only for building documentation
