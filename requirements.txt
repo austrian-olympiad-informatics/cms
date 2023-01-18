@@ -9,7 +9,7 @@ gevent==21.8.0
 greenlet==2.0.1
 werkzeug==2.0.2
 patool==1.12
-bcrypt==3.2.0
+bcrypt==4.0.1
 chardet==4.0.0
 babel==2.11.0
 pyxdg==0.27
