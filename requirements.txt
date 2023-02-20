@@ -1,6 +1,6 @@
 tornado==4.5.3
 psycopg2==2.9.5
-sqlalchemy==1.3.24
+sqlalchemy==2.0.4
 netifaces==0.11.0
 pycryptodome==3.16.0
 psutil==5.9.4
