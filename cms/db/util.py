@@ -291,7 +291,10 @@ def enumerate_files(
 
     queries = list()
 
-    task_q = contest_q.join(Contest.tasks)
+    if contest is not None:
+        task_q = contest_q.join(Contest.tasks)
+    else:
+        task_q = session.query(Task)
     queries.append(task_q.join(Task.statements).with_entities(Statement.digest))
     queries.append(task_q.filter(Task.statement_html_digest != None).with_entities(Task.statement_html_digest))
     queries.append(task_q.filter(Task.default_input_digest != None).with_entities(Task.default_input_digest))
