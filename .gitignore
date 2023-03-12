@@ -15,4 +15,5 @@ log/
 .vscode/
 /venv/
 /config/rootfs/
+/config/cms.docker.conf
 /docker-data/

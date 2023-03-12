@@ -2,7 +2,7 @@ version: '3'
 
 services:
   cmsdb:
-    image: postgres:14
+    image: postgres:15
     volumes:
       - ./docker-data/db:/var/lib/postgresql/data:rw
     environment:
@@ -20,7 +20,6 @@ services:
     command: tail -f /dev/null
     volumes:
       - "./config/cms.docker.conf:/usr/local/etc/cms.conf:rw"
-      - "/sys/fs/cgroup:/sys/fs/cgroup:rw"
     networks:
       - cms
     restart: unless-stopped
