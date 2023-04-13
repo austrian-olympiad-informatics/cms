@@ -200,7 +200,7 @@ def validate_password(authentication: str, password: str) -> bool:
         except ValueError:
             return False
     elif method == "plaintext":
-        return hmac.compare_digest(password, hashed)
+        return hmac.compare_digest(password, payload)
     else:
         raise ValueError("Authentication method not known.")
 
