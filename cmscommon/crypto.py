@@ -193,7 +193,7 @@ def validate_password(authentication, password):
         hashed = payload.encode('utf-8')
         return bcrypt.checkpw(password, hashed)
     elif method == "plaintext":
-        return hmac.compare_digest(password, hashed)
+        return hmac.compare_digest(password, payload)
     else:
         raise ValueError("Authentication method not known.")
 
