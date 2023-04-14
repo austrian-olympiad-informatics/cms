@@ -278,7 +278,7 @@ class MessageHandler(BaseHandler):
             .first()
         )
         task_id = self.get_argument("task_id", "")
-        task = self.safe_get_item(Task, task_id) if task_id else None
+        task = self.safe_get_item(Task, int(task_id)) if task_id else None
 
         # check that the participation is valid
         if participation is None:
