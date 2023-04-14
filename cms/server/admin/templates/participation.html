@@ -225,7 +225,7 @@ function update_additional_answer(element, invoker)
               <select name="task_id" id="new_task" style="width: 100%">
                 <option value="">Global</option>
                 {% for task in contest.tasks %}
-                <option value="{{ task.name }}">{{ task.name }}</option>
+                <option value="{{ task.id }}">{{ task.name }}</option>
                 {% endfor %}
               </select>
             </div>

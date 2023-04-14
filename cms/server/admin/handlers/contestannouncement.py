@@ -47,7 +47,7 @@ class AddAnnouncementHandler(BaseHandler):
         subject = self.get_argument("subject", "")
         text = self.get_argument("text", "")
         task_id = self.get_argument("task_id", "")
-        task = self.safe_get_item(Task, task_id) if task_id else None
+        task = self.safe_get_item(Task, int(task_id)) if task_id else None
         if len(subject) > 0:
             ann = Announcement(make_datetime(), subject, text,
                                contest=self.contest, admin=self.current_user,
