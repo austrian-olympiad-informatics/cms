@@ -2,7 +2,7 @@ tornado==4.5.3
 psycopg2==2.9.6
 sqlalchemy==1.3.24
 netifaces==0.11.0
-pycryptodome==3.17
+pycryptodome==3.18.0
 psutil==5.9.5
 requests==2.31.0
 gevent==22.10.2
