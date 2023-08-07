@@ -10,7 +10,7 @@ greenlet==2.0.2
 werkzeug==2.0.3
 patool==1.12
 bcrypt==4.0.1
-chardet==5.1.0
+chardet==5.2.0
 babel==2.12.1
 pyxdg==0.28
 Jinja2==3.1.2
