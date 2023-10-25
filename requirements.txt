@@ -7,7 +7,7 @@ psutil==5.9.5
 requests==2.31.0
 gevent==23.7.0
 greenlet==2.0.2
-werkzeug==2.0.3
+werkzeug==3.0.1
 patool==1.12
 bcrypt==4.0.1
 chardet==5.1.0
