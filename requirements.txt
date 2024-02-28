@@ -5,7 +5,7 @@ netifaces==0.11.0
 pycryptodome==3.19.1
 psutil==5.9.5
 requests==2.31.0
-gevent==23.9.1
+gevent==24.2.1
 greenlet==2.0.2
 werkzeug==3.0.1
 patool==1.12
