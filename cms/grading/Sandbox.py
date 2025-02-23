@@ -1143,6 +1143,7 @@ class IsolateSandbox(SandboxBase):
                 f'--dir=/={config.chroot_base_image}',
                 '--dir=proc=proc:fs',
                 '--dir=dev:dev',
+                '--dir=/dev/shm:tmpfs:fs:rw', # replace /dev/shm by our own tmpfs to prevent communication
                 '--dir=box=./box:rw',
             ]
         if self.chdir is not None:
