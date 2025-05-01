@@ -826,6 +826,11 @@ class StupidSandbox(SandboxBase):
             logger.debug("Deleting sandbox in %s.", self._path)
             rmtree(self._path)
 
+    def add_mapped_directory(*args, **kwargs):
+        pass
+
+    def maybe_add_mapped_directory(*args, **kwargs):
+        pass
 
 class IsolateSandbox(SandboxBase):
     """This class creates, deletes and manages the interaction with a
