@@ -522,6 +522,55 @@ class SandboxBase(metaclass=ABCMeta):
         pass
 
 
+    def add_mapped_directory(self, src, dest=None, options=None,
+                             ignore_if_not_existing=False):
+        """Add src to the directory to be mapped inside the sandbox.
+
+        src (str): directory to make visible.
+        dest (str|None): if not None, the path where to bind src.
+        options (str|None): if not None, isolate's directory rule options.
+        ignore_if_not_existing (bool): if True, ignore the mapping when src
+            does not exist (instead of having isolate terminate with an
+            error).
+
+        """
+        pass
+
+    def maybe_add_mapped_directory(self, src, dest=None, options=None):
+        """Same as add_mapped_directory, with ignore_if_not_existing."""
+        return self.add_mapped_directory(src, dest, options,
+                                         ignore_if_not_existing=True)
+
+    def allow_writing_all(self):
+        """Set permissions in such a way that any operation is allowed.
+
+        """
+        pass
+
+    def allow_writing_none(self):
+        """Set permissions in such a way that the user cannot write anything.
+
+        """
+        pass
+
+    def allow_writing_only(self, inner_paths):
+        """Set permissions in so that the user can write only some paths.
+
+        By default the user can only write to the home directory. This
+        method further restricts permissions so that it can only write
+        to some files inside the home directory.
+
+        inner_paths ([str]): the only paths that the user is allowed to
+            write to; they should be "inner" paths (from the perspective
+            of the sandboxed process, not of the host system); they can
+            be absolute or relative (in which case they are interpreted
+            relative to the home directory); paths that point to a file
+            outside the home directory are ignored.
+
+        """
+        pass
+
+
 class StupidSandbox(SandboxBase):
     """A stupid sandbox implementation. It has very few features and
     is not secure against things like box escaping and fork
@@ -628,8 +677,10 @@ class StupidSandbox(SandboxBase):
         return (string): the main reason why the sandbox terminated.
 
         """
-        if self.popen.returncode >= 0:
+        if self.popen.returncode == 0:
             return self.EXIT_OK
+        elif self.popen.returncode > 0:
+            return self.EXIT_NONZERO_RETURN
         else:
             return self.EXIT_SIGNAL
 
@@ -826,12 +877,6 @@ class StupidSandbox(SandboxBase):
             logger.debug("Deleting sandbox in %s.", self._path)
             rmtree(self._path)
 
-    def add_mapped_directory(*args, **kwargs):
-        pass
-
-    def maybe_add_mapped_directory(*args, **kwargs):
-        pass
-
 class IsolateSandbox(SandboxBase):
     """This class creates, deletes and manages the interaction with a
     sandbox. The sandbox doesn't support concurrent operation, not
@@ -966,11 +1011,6 @@ class IsolateSandbox(SandboxBase):
         if ignore_if_not_existing and not os.path.exists(src):
             return
         self.dirs.append((src, dest, options))
-
-    def maybe_add_mapped_directory(self, src, dest=None, options=None):
-        """Same as add_mapped_directory, with ignore_if_not_existing."""
-        return self.add_mapped_directory(src, dest, options,
-                                         ignore_if_not_existing=True)
 
     def allow_writing_all(self):
         """Set permissions in such a way that any operation is allowed.
