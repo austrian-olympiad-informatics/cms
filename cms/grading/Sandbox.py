@@ -570,6 +570,9 @@ class SandboxBase(metaclass=ABCMeta):
         """
         pass
 
+    @classmethod
+    def supports_remappings(cls):
+        return False
 
 class StupidSandbox(SandboxBase):
     """A stupid sandbox implementation. It has very few features and
@@ -993,6 +996,10 @@ class IsolateSandbox(SandboxBase):
         # idempotent cleanup.
         self.cleanup()
         self.initialize_isolate()
+
+    @classmethod
+    def supports_remappings(cls):
+        return True
 
     def add_mapped_directory(self, src, dest=None, options=None,
                              ignore_if_not_existing=False):

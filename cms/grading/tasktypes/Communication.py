@@ -269,12 +269,17 @@ class Communication(TaskType):
             os.chmod(fifo_dir[i], 0o755)
             os.chmod(fifo_user_to_manager[i], 0o666)
             os.chmod(fifo_manager_to_user[i], 0o666)
-        # Names of the fifos after being mapped inside the sandboxes.
-        sandbox_fifo_dir = ["/fifo%d" % i for i in indices]
-        sandbox_fifo_user_to_manager = [
-            os.path.join(sandbox_fifo_dir[i], "u%d_to_m" % i) for i in indices]
-        sandbox_fifo_manager_to_user = [
-            os.path.join(sandbox_fifo_dir[i], "m_to_u%d" % i) for i in indices]
+        if Sandbox.supports_remappings():
+            # Names of the fifos after being mapped inside the sandboxes.
+            sandbox_fifo_dir = ["/fifo%d" % i for i in indices]
+            sandbox_fifo_user_to_manager = [
+                os.path.join(sandbox_fifo_dir[i], "u%d_to_m" % i) for i in indices]
+            sandbox_fifo_manager_to_user = [
+                os.path.join(sandbox_fifo_dir[i], "m_to_u%d" % i) for i in indices]
+        else:
+            sandbox_fifo_dir = fifo_dir
+            sandbox_fifo_user_to_manager = fifo_user_to_manager
+            sandbox_fifo_manager_to_user = fifo_manager_to_user
 
         # Create the manager sandbox and copy manager and input.
         sandbox_mgr = create_sandbox(file_cacher, name="manager_evaluate")
