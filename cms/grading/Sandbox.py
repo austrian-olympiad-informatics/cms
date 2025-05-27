@@ -585,6 +585,9 @@ class SandboxBase(metaclass=ABCMeta):
         """
         pass
 
+    @classmethod
+    def supports_remappings(cls):
+        return False
     def archive(self) -> str | None:
         """Archive the directory where the sandbox operated.
 
@@ -1044,6 +1047,10 @@ class IsolateSandbox(SandboxBase):
         # idempotent cleanup.
         self.cleanup()
         self.initialize_isolate()
+
+    @classmethod
+    def supports_remappings(cls):
+        return True
 
     def add_mapped_directory(
         self,
