@@ -20,7 +20,7 @@
 from collections.abc import Callable
 import json
 
-from secure_cookie.cookie import SecureCookie
+from werkzeug.contrib.securecookie import SecureCookie
 from werkzeug.local import Local, LocalManager
 from werkzeug.wrappers import Request, Response
 

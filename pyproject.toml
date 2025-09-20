@@ -34,6 +34,7 @@ dependencies = [
     "Jinja2>=2.10,<2.11",     # http://jinja.pocoo.org/docs/latest/changelog/
     "markdown-it-py==3.0.0",  # https://github.com/executablebooks/markdown-it-py/blob/master/CHANGELOG.md
     "setuptools>=80,<81",     # https://setuptools.pypa.io/en/latest/history.html
+    "PyNaCl>=1.6.0,<2",       # https://pypi.org/project/PyNaCl/#history
 
     # See https://github.com/pallets/markupsafe/issues/286 but breaking change in
     # MarkupSafe causes jinja to break

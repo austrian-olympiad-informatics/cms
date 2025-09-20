@@ -703,68 +703,6 @@ class TestManager(Base):
         nullable=False)
 
 
-class LanguageTemplate(Base):
-    __tablename__ = 'language_templates'
-    __table_args__ = (
-        UniqueConstraint('dataset_id', 'filename'),
-    )
-
-    # Auto increment primary key.
-    id = Column(
-        Integer,
-        primary_key=True)
-
-    # Dataset (id and object) owning the manager.
-    dataset_id = Column(
-        Integer,
-        ForeignKey(Dataset.id,
-                   onupdate="CASCADE", ondelete="CASCADE"),
-        nullable=False,
-        index=True)
-    dataset = relationship(
-        Dataset,
-        back_populates="language_templates")
-
-    # Filename and digest of the provided manager.
-    filename = Column(
-        Filename,
-        nullable=False)
-    digest = Column(
-        Digest,
-        nullable=False)
-
-
-class TestManager(Base):
-    __tablename__ = 'test_managers'
-    __table_args__ = (
-        UniqueConstraint('dataset_id', 'filename'),
-    )
-
-    # Auto increment primary key.
-    id = Column(
-        Integer,
-        primary_key=True)
-
-    # Dataset (id and object) owning the manager.
-    dataset_id = Column(
-        Integer,
-        ForeignKey(Dataset.id,
-                   onupdate="CASCADE", ondelete="CASCADE"),
-        nullable=False,
-        index=True)
-    dataset = relationship(
-        Dataset,
-        back_populates="test_managers")
-
-    # Filename and digest of the provided manager.
-    filename = Column(
-        Filename,
-        nullable=False)
-    digest = Column(
-        Digest,
-        nullable=False)
-
-
 class Testcase(Base):
     """Class to store the information about a testcase.
 

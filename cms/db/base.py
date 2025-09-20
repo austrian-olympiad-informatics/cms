@@ -61,8 +61,6 @@ _TYPE_MAP = {
     JSONB: object,
 }
 
-_reg = registry(_bind=engine, metadata=metadata, constructor=None)
-
 # this has an @as_declarative, but to ease type checking it's applied manually
 # after the class definition, only when not type-checking (i.e. at runtime).
 class Base:

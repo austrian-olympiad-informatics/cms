@@ -40,7 +40,7 @@ from cmscommon.crypto import generate_random_password, build_password
 from . import CastingArray, Codename, Base, Admin, Contest
 import typing
 if typing.TYPE_CHECKING:
-    from . import PrintJob, Submission, UserTest
+    from . import PrintJob, Submission, UserTest, Task
 
 class User(Base):
     """Class to store a user.
@@ -373,7 +373,7 @@ class Message(Base):
         index=True,
         default=None
     )
-    task: Task = relationship("Task", back_populates="messages")
+    task: 'Task' = relationship("Task", back_populates="messages")
 
     task_id = Column(
         Integer,
@@ -469,4 +469,4 @@ class Question(Base):
         index=True,
         default=None
     )
-    task: Task = relationship("Task", back_populates="questions")
+    task: 'Task' = relationship("Task", back_populates="questions")
