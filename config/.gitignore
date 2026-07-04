@@ -1,3 +1,5 @@
+cms.toml
+cms_ranking.toml
 cms.conf
 cms.ranking.conf
 docker-rootfs

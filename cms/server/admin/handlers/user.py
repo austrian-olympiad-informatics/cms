@@ -9,6 +9,9 @@
 # Copyright © 2014 Fabian Gundlach <320pointsguy@gmail.com>
 # Copyright © 2016 Myungwoo Chun <mc.tamaki@gmail.com>
 # Copyright © 2017 Valentin Rosca <rosca.valentin2012@gmail.com>
+# Copyright © 2021 Manuel Gundlach <manuel.gundlach@gmail.com>
+# Copyright © 2026 Tobias Lenz <t_lenz94@web.de>
+# Copyright © 2026 Chuyang Wang <mail@chuyang-wang.de>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -27,10 +30,11 @@
 
 """
 
-from cms.db import Contest, Participation, Submission, Team, User
+from cms.db import Contest, Participation, Submission, Team, Group, User
 from cmscommon.datetime import make_datetime
 
-from .base import BaseHandler, SimpleHandler, require_permission
+from .base import BaseHandler, SimpleContestHandler, SimpleHandler, \
+    require_permission
 
 
 class UserHandler(BaseHandler):
@@ -100,16 +104,38 @@ class UserListHandler(SimpleHandler("users.html")):
 
     @require_permission(BaseHandler.AUTHENTICATED)
     def post(self):
-        user_id = self.get_argument("user_id")
-        operation = self.get_argument("operation")
+        user_id: str = self.get_argument("user_id")
+        operation: str = self.get_argument("operation")
 
         if operation == self.REMOVE:
             asking_page = self.url("users", user_id, "remove")
-            # Open asking for remove page
             self.redirect(asking_page)
         else:
             self.service.add_notification(
                 make_datetime(), "Invalid operation %s" % operation, "")
+            self.redirect(self.url("contests"))
+
+
+class TeamListHandler(SimpleHandler("teams.html")):
+    """Get returns the list of all teams, post perform operations on
+    a specific team (removing them from CMS).
+
+    """
+
+    REMOVE = "Remove"
+
+    @require_permission(BaseHandler.AUTHENTICATED)
+    def post(self):
+        team_id: str = self.get_argument("team_id")
+        operation: str = self.get_argument("operation")
+
+        if operation == self.REMOVE:
+            asking_page = self.url("teams", team_id, "remove")
+            self.redirect(asking_page)
+        else:
+            self.service.add_notification(
+                make_datetime(), "Invalid operation %s" % operation, ""
+            )
             self.redirect(self.url("contests"))
 
 
@@ -143,6 +169,47 @@ class RemoveUserHandler(BaseHandler):
 
         # Maybe they'll want to do this again (for another user)
         self.write("../../users")
+
+
+class RemoveTeamHandler(BaseHandler):
+    """Get returns a page asking for confirmation, delete actually removes
+    the team from CMS.
+
+    """
+
+    @require_permission(BaseHandler.PERMISSION_ALL)
+    def get(self, team_id):
+        team = self.safe_get_item(Team, team_id)
+        participation_query = self.sql_session.query(Participation).filter(
+            Participation.team == team
+        )
+
+        self.r_params = self.render_params()
+        self.r_params["team"] = team
+        self.r_params["participation_count"] = participation_query.count()
+        self.render("team_remove.html", **self.r_params)
+
+    @require_permission(BaseHandler.PERMISSION_ALL)
+    def delete(self, team_id):
+        team = self.safe_get_item(Team, team_id)
+        try:
+
+            # Remove associations
+            self.sql_session.query(Participation).filter(
+                Participation.team_id == team_id
+            ).update({Participation.team_id: None})
+
+            # delete the team
+            self.sql_session.delete(team)
+            if self.try_commit():
+                self.service.proxy_service.reinitialize()
+        except Exception as fallback_error:
+            self.service.add_notification(
+                make_datetime(), "Error removing team", repr(fallback_error)
+            )
+
+        # Maybe they'll want to do this again (for another team)
+        self.write("../../teams")
 
 
 class TeamHandler(BaseHandler):
@@ -258,8 +325,6 @@ class AddUserHandler(SimpleHandler("add_user.html", permission_all=True)):
             self.redirect(self.url("user", user.id))
         else:
             self.redirect(fallback_page)
-
-
 class AddParticipationHandler(BaseHandler):
     @require_permission(BaseHandler.PERMISSION_ALL)
     def post(self, user_id):
@@ -268,7 +333,7 @@ class AddParticipationHandler(BaseHandler):
         user = self.safe_get_item(User, user_id)
 
         try:
-            contest_id = self.get_argument("contest_id")
+            contest_id: str = self.get_argument("contest_id")
             assert contest_id != "null", "Please select a valid contest"
         except Exception as error:
             self.service.add_notification(
@@ -284,6 +349,7 @@ class AddParticipationHandler(BaseHandler):
 
         # Create the participation.
         participation = Participation(contest=self.contest,
+                                      group=self.contest.main_group,
                                       user=user,
                                       hidden=attrs["hidden"],
                                       unrestricted=attrs["unrestricted"])
@@ -305,8 +371,8 @@ class EditParticipationHandler(BaseHandler):
         user = self.safe_get_item(User, user_id)
 
         try:
-            contest_id = self.get_argument("contest_id")
-            operation = self.get_argument("operation")
+            contest_id: str = self.get_argument("contest_id")
+            operation: str = self.get_argument("operation")
             assert contest_id != "null", "Please select a valid contest"
             assert operation in (
                 "Remove",
@@ -332,4 +398,148 @@ class EditParticipationHandler(BaseHandler):
             self.service.proxy_service.reinitialize()
 
         # Maybe they'll want to do this again (for another contest).
+        self.redirect(fallback_page)
+
+
+class GroupListHandler(SimpleContestHandler("groups.html")):
+    """Get returns the list of all groups.
+
+    """
+
+    DELETE_GROUP = "Delete selected group"
+    MAKE_MAIN = "Make main group"
+
+    @require_permission(BaseHandler.PERMISSION_ALL)
+    def post(self, contest_id):
+        fallback_page = self.url("contest", contest_id, "groups")
+
+        try:
+            group_id = self.get_argument("group_id")
+            operation = self.get_argument("operation")
+
+            contest = self.safe_get_item(Contest, contest_id)
+            group = self.safe_get_item(Group, group_id)
+
+            if operation == self.DELETE_GROUP:
+                self._handle_delete_group(contest, group)
+                self.redirect(fallback_page)
+                return
+            elif operation == self.MAKE_MAIN:
+                contest.main_group_id = group.id
+                self.try_commit()
+                self.redirect(fallback_page)
+                return
+            else:
+                self.service.add_notification(
+                    make_datetime(), "Invalid operation", 
+                    f"I do not understand the operation `{operation}'")
+                self.redirect(fallback_page)
+                return
+
+        except Exception as error:
+            self.service.add_notification(
+                make_datetime(), "Invalid field(s)", repr(error))
+            self.redirect(fallback_page)
+            return
+
+    def _handle_delete_group(self, contest, group):
+        # disallow deleting non-empty groups
+        if len(group.participations) != 0:
+            self.application.service.add_notification(
+                make_datetime(), "Cannot delete group containing users",
+                f"The group `{group.name}' contains "
+                f"{len(group.participations)} users")
+            return
+
+        # disallow deleting the main_group of the contest
+        if contest.main_group_id == group.id:
+            self.application.service.add_notification(
+                make_datetime(), f"Cannot delete a contest's main group.",
+                f"To delete '{group.name}', change the main group of "
+                f"the contest first to another group.")
+            return
+
+        self.sql_session.delete(group)
+        self.try_commit()
+
+
+class AddGroupHandler(BaseHandler):
+    """Adds a new group.
+
+    """
+    @require_permission(BaseHandler.PERMISSION_ALL)
+    def post(self, contest_id):
+        fallback_page = self.url("contest", contest_id, "groups", "add")
+
+        try:
+            attrs = dict()
+
+            self.get_string(attrs, "name")
+
+            assert attrs.get("name") is not None, \
+                "No name specified."
+
+            attrs["contest"] = self.safe_get_item(Contest, contest_id)
+            
+            for key in ["start", "stop", "analysis_enabled", 
+                        "analysis_start", "analysis_stop", 
+                        "per_user_time"]:
+                attrs[key] = getattr(attrs["contest"].main_group, key)
+
+            # Create the group.
+            group = Group(**attrs)
+            self.sql_session.add(group)
+
+        except Exception as error:
+            self.application.service.add_notification(
+                make_datetime(), "Invalid field(s)", repr(error))
+            self.redirect(fallback_page)
+            return
+
+        self.try_commit()
+        self.redirect(self.url("contest", contest_id,
+                               "group", group.id, "edit"))
+
+
+class GroupHandler(BaseHandler):
+    @require_permission(BaseHandler.PERMISSION_ALL)
+    def get(self, contest_id, group_id):
+        self.contest = self.safe_get_item(Contest, contest_id)
+
+        self.r_params = self.render_params()
+
+        group = self.safe_get_item(Group, group_id)
+        assert group.contest_id == self.contest.id
+
+        self.r_params["group"] = group
+        self.render("group.html", **self.r_params)
+
+    @require_permission(BaseHandler.PERMISSION_ALL)
+    def post(self, contest_id, group_id):
+        fallback_page = self.url("contest", contest_id,
+                                 "group", group_id, "edit")
+
+        self.contest = self.safe_get_item(Contest, contest_id)
+        group = self.safe_get_item(Group, group_id)
+        assert group.contest_id == self.contest.id
+
+        try:
+            attrs = group.get_attrs()
+
+            self.get_string(attrs, "name", empty=None)
+
+            assert attrs.get("name") is not None, \
+                "No group name specified."
+
+            # Update the group.
+            group.name = attrs["name"]
+            self.get_group_settings(group)
+
+        except Exception as error:
+            self.application.service.add_notification(
+                make_datetime(), "Invalid field(s)", repr(error))
+            self.redirect(fallback_page)
+            return
+
+        self.try_commit()
         self.redirect(fallback_page)

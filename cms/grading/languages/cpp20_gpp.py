@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 
 # Contest Management System - http://cms-dev.github.io/
-# Copyright © 2016 Stefano Maggiolo <s.maggiolo@gmail.com>
-# Copyright © 2020 Andrey Vihrov <andrey.vihrov@gmail.com>
+# Copyright © 2024 Filippo Casarin <casarin.filippo17@gmail.com>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -58,7 +57,7 @@ class Cpp20Gpp(CompiledLanguage):
         command = ["/usr/bin/g++"]
         if for_evaluation:
             command += ["-DEVAL"]
-        command += ["-std=c++20", "-O2", "-pipe", "-Wno-unused-result",
-                    "-s", "-o", executable_filename]
+        command += ["-std=gnu++20", "-O2", "-pipe", "-Wno-unused-result",
+                    "-static", "-s", "-o", executable_filename]
         command += source_filenames
         return [command]
