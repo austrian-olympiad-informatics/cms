@@ -32,8 +32,6 @@ from setuptools import setup, find_packages
 from setuptools.command.build import build
 
 
-here = os.path.abspath(os.path.dirname(__file__))
-
 PACKAGE_DATA = {
     "cms.server": [
         "static/*.*",
