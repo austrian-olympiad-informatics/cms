@@ -22,3 +22,4 @@ test_logs/
 /config/rootfs/
 /config/cms.docker.conf
 /docker-data/
+MERGE_NOTES.md
