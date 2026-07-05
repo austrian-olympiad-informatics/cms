@@ -178,6 +178,8 @@ class Config:
     proxy_service: ProxyServiceConfig = field_helper(ProxyServiceConfig)
     prometheus: PrometheusConfig = field_helper(PrometheusConfig)
     telegram_bot: TelegramBotConfig | None = None
+    # AOI: path to a folder of memes shown by CWS (None disables memes).
+    memes_path: str | None = None
     # This is the one that will be provided in the config file.
     services_: dict[str, list[tuple[str, int]]]
     # And this is the one we want to use inside CMS.
