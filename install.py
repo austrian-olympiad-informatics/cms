@@ -87,25 +87,43 @@ def create_dirs() -> None:
         (target_path / dir).mkdir(mode=0o755, parents=True, exist_ok=True)
 
 
+def _have_uv() -> bool:
+    return shutil.which('uv') is not None
+
+
+def _pip_install(*pkg_args: str) -> None:
+    """Install packages into the target venv, preferring uv if available."""
+    if _have_uv():
+        subprocess.run(
+            ['uv', 'pip', 'install',
+             '--python', str(target_path / 'bin/python'), *pkg_args],
+            check=True)
+    else:
+        subprocess.run(
+            [str(target_path / 'bin/pip'), 'install', *pkg_args],
+            check=True)
+
+
 def create_venv() -> None:
     if (target_path / 'bin/python').is_file():
         verbose("Python virtual environment already exists")
     else:
         progress("Creating Python virtual environment")
         venv.create(str(target_path), symlinks=True, with_pip=True, prompt=target_path.name)
-        subprocess.run(
-            [str(target_path / 'bin/pip'), 'install', '-U', 'pip', 'wheel'],
-            check=True)
+        # uv brings its own resolver/installer; pip/wheel only matter on the
+        # pip fallback path.
+        if not _have_uv():
+            subprocess.run(
+                [str(target_path / 'bin/pip'), 'install', '-U', 'pip', 'wheel'],
+                check=True)
 
 
 def install_package() -> None:
     progress("Installing CMS package" + (" (editable)" if args.editable else ""))
-    subprocess.run(
-        [str(target_path / 'bin/pip'), 'install']
-            + ['-c', 'constraints.txt']
-            + (['-e'] if args.editable else [])
-            + ['.' + ('[devel]' if args.devel else "")],
-        check=True)
+    _pip_install(
+        '-c', 'constraints.txt',
+        *(['-e'] if args.editable else []),
+        '.' + ('[devel]' if args.devel else ""))
 
 
 def install_config() -> None:

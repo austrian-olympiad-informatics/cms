@@ -88,6 +88,9 @@ RUN <<EOF
     echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 EOF
 
+# uv: fast Python package manager. install.py uses it automatically when on PATH.
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
 # Set cmsuser as default user
 USER cmsuser
 ENV LANG=C.UTF-8
@@ -97,12 +100,12 @@ COPY --chown=cmsuser:cmsuser install.py constraints.txt /home/cmsuser/src/
 
 WORKDIR /home/cmsuser/src
 
-RUN --mount=type=cache,target=/home/cmsuser/.cache/pip,uid=2000 ./install.py venv
+RUN --mount=type=cache,target=/home/cmsuser/.cache/uv,uid=2000 ./install.py venv
 ENV PATH="/home/cmsuser/cms/bin:$PATH"
 
 COPY --chown=cmsuser:cmsuser . /home/cmsuser/src
 
-RUN --mount=type=cache,target=/home/cmsuser/.cache/pip,uid=2000 ./install.py cms --devel
+RUN --mount=type=cache,target=/home/cmsuser/.cache/uv,uid=2000 ./install.py cms --devel
 
 RUN <<EOF
 #!/bin/bash -ex
