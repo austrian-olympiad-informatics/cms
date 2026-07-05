@@ -71,8 +71,6 @@ __all__ = [
     # usereval
     "UserEval", "UserEvalFile", "UserEvalResult",
     "UserEvalExecutable",
-    # printjob
-    "PrintJob",
     # init
     "init_db",
     # drop
@@ -110,7 +108,6 @@ from .submission import Submission, File, Token, SubmissionResult, \
 from .usertest import UserTest, UserTestFile, UserTestManager, \
     UserTestResult, UserTestExecutable
 from .usereval import UserEval, UserEvalFile, UserEvalResult, UserEvalExecutable
-from .printjob import PrintJob
 
 from .init import init_db
 from .drop import drop_db

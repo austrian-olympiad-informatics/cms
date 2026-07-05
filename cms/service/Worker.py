@@ -69,7 +69,7 @@ class Worker(Service):
         logging.info("Precaching all files")
         with SessionGen() as session:
             files = enumerate_files(session, skip_submissions=True,
-                                    skip_user_tests=True, skip_print_jobs=True)
+                                    skip_user_tests=True)
         logging.info("Found %d files", len(files))
         start = time.time()
         for digest in files:

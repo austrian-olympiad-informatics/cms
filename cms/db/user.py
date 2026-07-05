@@ -394,12 +394,6 @@ class Participation(Base):
         passive_deletes=True,
         back_populates="participation")
 
-    printjobs = relationship(
-        "PrintJob",
-        cascade="all, delete-orphan",
-        passive_deletes=True,
-        back_populates="participation")
-
     session_tokens = relationship(
         "ParticipationSessionToken",
         cascade="all, delete-orphan",
