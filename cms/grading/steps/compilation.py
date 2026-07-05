@@ -93,13 +93,13 @@ def compilation_step(
 
     """
     # Set sandbox parameters suitable for compilation.
-    if config.chroot_base_image is None:
+    if config.sandbox.chroot_base_image is None:
         sandbox.add_mapped_directory("/etc")
     # Directory required to be visible during a compilation with GHC.
     # GHC looks for the Haskell's package database in
     # "/usr/lib/ghc/package.conf.d" (already visible by isolate's default,
     # but it is a symlink to "/var/lib/ghc/package.conf.d"
-    if config.chroot_base_image is None:
+    if config.sandbox.chroot_base_image is None:
         sandbox.maybe_add_mapped_directory("/var/lib/ghc")
     sandbox.preserve_env = True
     sandbox.max_processes = config.sandbox.compilation_sandbox_max_processes

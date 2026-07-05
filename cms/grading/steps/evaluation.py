@@ -90,6 +90,7 @@ def evaluation_step(
     stdin_redirect: str | None = None,
     stdout_redirect: str | None = None,
     multiprocess: bool = False,
+    stderr_to_stdout: bool = False,
 ) -> tuple[bool, bool | None, StatsDict | None]:
     """Execute some evaluation commands in the sandbox.
 
@@ -137,7 +138,8 @@ def evaluation_step(
         success = evaluation_step_before_run(
             sandbox, command, time_limit, memory_limit,
             None, dirs_map, writable_files, stdin_redirect,
-            stdout_redirect, multiprocess, wait=True)
+            stdout_redirect, multiprocess, wait=True,
+            stderr_to_stdout=stderr_to_stdout)
         if not success:
             logger.debug("Job failed in evaluation_step_before_run.")
             return False, None, None
@@ -162,6 +164,7 @@ def evaluation_step_before_run(
     multiprocess: bool = False,
     close_fds: bool = True,
     wait: bool = False,
+    stderr_to_stdout: bool = False,
 ) -> bool | subprocess.Popen:
     """First part of an evaluation step, up to the execution, included.
 
@@ -210,7 +213,12 @@ def evaluation_step_before_run(
 
     sandbox.stdin_file = stdin_redirect
     sandbox.stdout_file = stdout_redirect
-    sandbox.stderr_file = "stderr.txt"
+    # AOI: for user evaluations we fold stderr into stdout so the user sees it.
+    if stderr_to_stdout:
+        sandbox.stderr_to_stdout = True
+        sandbox.stderr_file = None
+    else:
+        sandbox.stderr_file = "stderr.txt"
 
     for src, (dest, options) in dirs_map.items():
         sandbox.add_mapped_directory(src, dest=dest, options=options)

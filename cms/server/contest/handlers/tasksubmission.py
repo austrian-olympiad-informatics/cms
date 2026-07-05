@@ -334,12 +334,12 @@ class SubmissionDetailsHandler(ContestHandler):
 
 
         meme_url = None
-        if config.memes_path is not None and task.token_mode == TOKEN_MODE_DISABLED:
+        if config.contest_web_server.memes_path is not None and task.token_mode == TOKEN_MODE_DISABLED:
             score = sr.score
 
             parsed = []
-            for fname in os.listdir(config.memes_path):
-                path = os.path.join(config.memes_path, fname)
+            for fname in os.listdir(config.contest_web_server.memes_path):
+                path = os.path.join(config.contest_web_server.memes_path, fname)
                 if not os.path.isfile(path):
                     continue
                 m = re.match(r'^(\d+)-(\d+)-.*\.(jpeg|jpg|png|gif)$', fname)
@@ -347,7 +347,7 @@ class SubmissionDetailsHandler(ContestHandler):
                     continue
                 parsed.append((int(m.group(1)), int(m.group(2)), fname))
 
-            task_path = os.path.join(config.memes_path, 'task', task_name)
+            task_path = os.path.join(config.contest_web_server.memes_path, 'task', task_name)
             if os.path.exists(task_path):
                 for fname in os.listdir(task_path):
                     path = os.path.join(task_path, fname)

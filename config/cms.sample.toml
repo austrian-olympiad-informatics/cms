@@ -99,6 +99,12 @@ trusted_sandbox_max_processes = 1000
 trusted_sandbox_max_time_s = 10.0
 trusted_sandbox_max_memory_kib = 4_194_304  # 4 GiB
 
+# AOI: optional read-only rootfs image mounted as the sandbox root.
+#chroot_base_image = "/path/to/rootfs"
+# AOI: extra isolate hardening (off by default).
+apparmor_enabled = false
+seccomp_enabled = false
+
 
 [web_server]
 # This key is used to encode information that can be seen by the user,
@@ -146,6 +152,9 @@ tests_local_copy_path = "%s/tests/"
 max_submission_length = 100_000
 # Maximum size of an input file for an user test.
 max_input_length = 5_000_000
+
+# AOI: path to a folder of memes shown by CWS (comment out to disable).
+#memes_path = "/some/path/to/memes"
 
 # Path to the documentation exposed by CWS. To show a documentation link
 # add a folder for each language with index.html inside. For example for

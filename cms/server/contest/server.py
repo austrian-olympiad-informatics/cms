@@ -106,9 +106,9 @@ class ContestWebServer(WebService):
             cache=True, cache_timeout=SECONDS_IN_A_YEAR,
             fallback_mimetype="application/octet-stream")
 
-        if config.memes_path is not None:
+        if config.contest_web_server.memes_path is not None:
             self.wsgi_app = SharedDataMiddleware(
-                self.wsgi_app, {"/memes": config.memes_path},
+                self.wsgi_app, {"/memes": config.contest_web_server.memes_path},
                 disallow="*.py", cache=True, cache_timeout=SECONDS_IN_A_YEAR,
                 fallback_mimetype="application/octet-stream")
 

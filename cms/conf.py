@@ -101,6 +101,11 @@ class SandboxConfig:
     trusted_sandbox_max_processes: int = 1000
     trusted_sandbox_max_time_s: float = 10.0
     trusted_sandbox_max_memory_kib: int = 4 * 1024 * 1024  # 4 GiB
+    # AOI: optional base image (rootfs) mounted read-only as the sandbox root.
+    chroot_base_image: str | None = None
+    # AOI: additional isolate hardening (off by default).
+    apparmor_enabled: bool = False
+    seccomp_enabled: bool = False
 
 
 @dataclass()
@@ -131,6 +136,9 @@ class CWSConfig:
     docs_path: str | None = None
 
     contest_admin_token: str | None = None
+
+    # AOI: path to a folder of memes shown by CWS (None disables memes).
+    memes_path: str | None = None
 
 
 @dataclass()
@@ -178,8 +186,6 @@ class Config:
     proxy_service: ProxyServiceConfig = field_helper(ProxyServiceConfig)
     prometheus: PrometheusConfig = field_helper(PrometheusConfig)
     telegram_bot: TelegramBotConfig | None = None
-    # AOI: path to a folder of memes shown by CWS (None disables memes).
-    memes_path: str | None = None
     # This is the one that will be provided in the config file.
     services_: dict[str, list[tuple[str, int]]]
     # And this is the one we want to use inside CMS.

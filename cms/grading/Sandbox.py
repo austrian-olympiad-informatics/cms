@@ -272,6 +272,7 @@ class Sandbox:
         self.stdin_file: str | int | None = None  # -i
         self.stdout_file: str | int | None = None  # -o
         self.stderr_file: str | int | None = None  # -r
+        self.stderr_to_stdout: bool = False  # --stderr-to-stdout (AOI: user evals)
         self.stack_space: int | None = None  # -k
         self.address_space: int | None = None  # -m
         self.timeout: float | None = None  # -t
@@ -298,7 +299,7 @@ class Sandbox:
         # Go toolchain caches in $GOCACHE.
         self.set_env["GOCACHE"] = "/tmp"
 
-        if getattr(config, "chroot_base_image", None) is None:
+        if config.sandbox.chroot_base_image is None:
             # Needed on Ubuntu by PHP (and more), since /usr/bin only contains
             # a symlink to one out of many alternatives.
             self.maybe_add_mapped_directory("/etc/alternatives")
@@ -870,10 +871,10 @@ class Sandbox:
         res = ["--cg"]
         if self.box_id is not None:
             res += ["--box-id=%d" % self.box_id]
-        if getattr(config, "chroot_base_image", None) is not None:
+        if config.sandbox.chroot_base_image is not None:
             res += [
                 '--no-default-dirs',
-                f'--dir=/={config.chroot_base_image}',
+                f'--dir=/={config.sandbox.chroot_base_image}',
                 '--dir=proc=proc:fs',
                 '--dir=dev:dev',
                 '--dir=/dev/shm=tmpfs:fs:rw',
@@ -922,9 +923,9 @@ class Sandbox:
             res += ["--wall-time=%g" % self.wallclock_timeout]
         if self.extra_timeout is not None:
             res += ["--extra-time=%g" % self.extra_timeout]
-        if getattr(config, "apparmor_enabled", False):
+        if config.sandbox.apparmor_enabled:
             res += ["--aa-profile=cms%s" % self.name]
-        if getattr(config, "seccomp_enabled", False):
+        if config.sandbox.seccomp_enabled:
             res += ["--enable-seccomp"]
         if not self.close_fds:
             res += ["--inherit-fds", "--open-files=0"]
