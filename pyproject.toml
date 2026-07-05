@@ -25,7 +25,7 @@ dependencies = [
     "requests==2.32.3",       # https://pypi.python.org/pypi/requests
     "gevent==25.8.1",         # http://www.gevent.org/changelog.html
     "greenlet>=3.0rc1",
-    "werkzeug==3.1.5",        # https://werkzeug.palletsprojects.com/en/stable/changes/
+    "werkzeug==3.1.6",        # https://werkzeug.palletsprojects.com/en/stable/changes/
     "backports.ssl-match-hostname==3.7.0.1", # required by tornado<5.0
     "patool>=1.12,<4.1",      # https://github.com/wummel/patool/blob/master/doc/changelog.txt
     "bcrypt>=3.1,<4.4",       # https://github.com/pyca/bcrypt/
