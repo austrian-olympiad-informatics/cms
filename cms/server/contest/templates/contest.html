@@ -31,9 +31,9 @@ var utils = new CMS.CWSUtils("{{ url() }}", "{{ contest_url() }}", "{{ contest.n
                              {{ current_phase_end|make_timestamp }},
                              {{ actual_phase }});
 $(document).ready(function () {
-    utils.update_time({% if contest.per_user_time is not none %}true{% else %}false{% endif %});
+    utils.update_time({% if participation.group.per_user_time is not none %}true{% else %}false{% endif %});
     var timer = setInterval(function() {
-        utils.update_time({% if contest.per_user_time is not none %}true{% else %}false{% endif %}, timer);
+        utils.update_time({% if participation.group.per_user_time is not none %}true{% else %}false{% endif %}, timer);
     }, 1000);
     utils.update_unread_count(0{% if page == "communication" %}, 0{% endif %});
     utils.update_notifications(true);
@@ -101,7 +101,7 @@ $(document).ready(function () {
                         <div class="control-group">
                             <label class="control-label" for="username">{% trans %}Username{% endtrans %}</label>
                             <div class="controls">
-                                <input type="text" class="input-xlarge" name="username" id="username">
+                                <input type="text" class="input-xlarge" name="username" id="username" autofocus>
                             </div>
                         </div>
                         <div class="control-group">
@@ -182,7 +182,7 @@ $(document).ready(function () {
                                     <span id="unread_count" class="label label-warning no_unread"></span>
                                 </a>
                             </li>
-    {% if actual_phase == 0 or actual_phase == 3 or participation.unrestricted %}
+    {% if actual_phase >= 0 or participation.unrestricted %}
         {% for t_iter in contest.tasks %}
                             <li class="nav-header">
                                 {{ t_iter.name }}
@@ -201,13 +201,8 @@ $(document).ready(function () {
                             </li>
     {% if actual_phase == 0 or participation.unrestricted %}{# FIXME maybe >= 0? #}
         {% if testing_enabled %}
-                            <li{% if page == "testing" %} class="active"{% endif %}>
+                            <li{% if page == "test_interface" %} class="active"{% endif %}>
                                 <a href="{{ contest_url("testing") }}">{% trans %}Testing{% endtrans %}</a>
-                            </li>
-        {% endif %}
-        {% if printing_enabled %}
-                            <li{% if page == "printing" %} class="active"{% endif %}>
-                                <a href="{{ contest_url("printing") }}">{% trans %}Printing{% endtrans %}</a>
                             </li>
         {% endif %}
     {% endif %}

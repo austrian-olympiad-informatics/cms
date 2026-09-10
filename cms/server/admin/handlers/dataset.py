@@ -31,16 +31,19 @@ import io
 import logging
 import re
 import zipfile
-
-from cms.db.task import LanguageTemplate, TestManager
+import collections
 
 try:
-    import tornado4.web as tornado_web
-except ImportError:
-    import tornado.web as tornado_web
+    collections.MutableMapping
+except:
+    # Monkey-patch: Tornado 4.5.3 does not work on Python 3.11 by default
+    collections.MutableMapping = collections.abc.MutableMapping
+
+import tornado.web
 
 from cms.db import Dataset, Manager, Message, Participation, \
     Session, Submission, Task, Testcase
+from cms.db.task import LanguageTemplate, TestManager
 from cms.grading.scoring import compute_changes_for_dataset
 from cmscommon.datetime import make_datetime
 from cmscommon.importers import import_testcases_from_zipfile
@@ -97,7 +100,7 @@ class CloneDatasetHandler(BaseHandler):
                 self.safe_get_item(Dataset, dataset_id_to_copy)
             description = "Copy of %s" % original_dataset.description
         except ValueError:
-            raise tornado_web.HTTPError(404)
+            raise tornado.web.HTTPError(404)
 
         self.r_params = self.render_params()
         self.r_params["task"] = task
@@ -120,7 +123,7 @@ class CloneDatasetHandler(BaseHandler):
             original_dataset = \
                 self.safe_get_item(Dataset, dataset_id_to_copy)
         except ValueError:
-            raise tornado_web.HTTPError(404)
+            raise tornado.web.HTTPError(404)
 
         try:
             attrs = dict()
@@ -195,7 +198,7 @@ class RenameDatasetHandler(BaseHandler):
         dataset = self.safe_get_item(Dataset, dataset_id)
         task = dataset.task
 
-        description = self.get_argument("description", "")
+        description: str = self.get_argument("description", "")
 
         # Ensure description is unique.
         if any(description == d.description
@@ -401,7 +404,7 @@ class DeleteManagerHandler(BaseHandler):
 
         # Protect against URLs providing incompatible parameters.
         if manager.dataset is not dataset:
-            raise tornado_web.HTTPError(404)
+            raise tornado.web.HTTPError(404)
 
         task_id = dataset.task_id
 
@@ -647,7 +650,6 @@ class AddTestcasesHandler(BaseHandler):
         fallback_page = \
             self.url("dataset", dataset_id, "testcases", "add_multiple")
 
-        # TODO: this method is quite long, some splitting is needed.
         dataset = self.safe_get_item(Dataset, dataset_id)
         task = dataset.task
 
@@ -665,8 +667,8 @@ class AddTestcasesHandler(BaseHandler):
         overwrite = self.get_argument("overwrite", None) is not None
 
         # Get input/output file names templates, or use default ones.
-        input_template = self.get_argument("input_template", "input.*")
-        output_template = self.get_argument("output_template", "output.*")
+        input_template: str = self.get_argument("input_template", "input.*")
+        output_template: str = self.get_argument("output_template", "output.*")
         input_re = re.compile(re.escape(input_template).replace("\\*",
                               "(.*)") + "$")
         output_re = re.compile(re.escape(output_template).replace("\\*",
@@ -702,7 +704,7 @@ class DeleteTestcaseHandler(BaseHandler):
 
         # Protect against URLs providing incompatible parameters.
         if dataset is not testcase.dataset:
-            raise tornado_web.HTTPError(404)
+            raise tornado.web.HTTPError(404)
 
         task_id = testcase.dataset.task_id
 
@@ -738,9 +740,9 @@ class DownloadTestcasesHandler(BaseHandler):
 
         # Get zip file name, input/output file names templates,
         # or use default ones.
-        zip_filename = self.get_argument("zip_filename", "testcases.zip")
-        input_template = self.get_argument("input_template", "input.*")
-        output_template = self.get_argument("output_template", "output.*")
+        zip_filename: str = self.get_argument("zip_filename", "testcases.zip")
+        input_template: str = self.get_argument("input_template", "input.*")
+        output_template: str = self.get_argument("output_template", "output.*")
 
         # Template validations
         if input_template.count('*') != 1 or output_template.count('*') != 1:
@@ -761,15 +763,12 @@ class DownloadTestcasesHandler(BaseHandler):
         temp_file = io.BytesIO()
         with zipfile.ZipFile(temp_file, "w") as zip_file:
             for testcase in dataset.testcases.values():
-                # Get input, output file path
-                with self.service.file_cacher.get_file(testcase.input) as f:
-                    input_path = f.name
-                with self.service.file_cacher.get_file(testcase.output) as f:
-                    output_path = f.name
-                zip_file.write(
-                    input_path, input_template % testcase.codename)
-                zip_file.write(
-                    output_path, output_template % testcase.codename)
+                # Copy input file
+                with zip_file.open(input_template % testcase.codename, 'w') as fout:
+                    self.service.file_cacher.get_file_to_fobj(testcase.input, fout)
+                # Copy output file
+                with zip_file.open(output_template % testcase.codename, 'w') as fout:
+                    self.service.file_cacher.get_file_to_fobj(testcase.output, fout)
 
         self.set_header("Content-Type", "application/zip")
         self.set_header("Content-Disposition",

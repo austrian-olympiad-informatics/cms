@@ -24,7 +24,6 @@ import unittest
 from datetime import timedelta
 from unittest.mock import patch
 
-# Needs to be first to allow for monkey patching the DB connection string.
 from cmstestsuite.unit_tests.databasemixin import DatabaseMixin
 
 from cms import TOKEN_MODE_INFINITE, TOKEN_MODE_DISABLED, TOKEN_MODE_FINITE
@@ -40,7 +39,8 @@ class TestTokensAvailable(DatabaseMixin, unittest.TestCase):
 
         self.timestamp = make_datetime()
 
-        self.contest = self.add_contest(start=self.at(0))
+        group = self.get_group(start=self.at(0))
+        self.contest = self.add_contest(groups = [group])
         self.participation = self.add_participation(contest=self.contest)
         self.task = self.add_task(contest=self.contest)
         self.other_task = self.add_task(contest=self.contest)
@@ -224,7 +224,7 @@ class TestTokensAvailable(DatabaseMixin, unittest.TestCase):
         self.assertEqual(self.call(10), (-1, None, None))
 
     def test_usaco_like(self):
-        self.contest.per_user_time = timedelta(seconds=100)
+        self.contest.main_group.per_user_time = timedelta(seconds=100)
         self.participation.starting_time = self.at(1000)
 
         self.set_contest_token_finite(initial=2, number=1, interval=10, max_=10)

@@ -28,17 +28,9 @@
 
 """
 
-import os
-import re
-
 from setuptools import setup, find_packages
-from setuptools.command.build_py import build_py
+from setuptools.command.build import build
 
-
-here = os.path.abspath(os.path.dirname(__file__))
-
-with open(os.path.join(here, "requirements.txt")) as requirements_txt:
-    REQUIRES = requirements_txt.read().splitlines()
 
 PACKAGE_DATA = {
     "cms.server": [
@@ -58,11 +50,11 @@ PACKAGE_DATA = {
         "contest/templates/*.*",
         "contest/templates/macro/*.*",
     ],
-    "cms.service": [
-        "templates/printing/*.*",
-    ],
     "cms.locale": [
         "*/LC_MESSAGES/*.*",
+    ],
+    "cmscontrib": [
+        "loaders/polygon/testlib.h",
     ],
     "cmsranking": [
         "static/img/*.*",
@@ -71,6 +63,8 @@ PACKAGE_DATA = {
     ],
     "cmstestsuite": [
         "code/*.*",
+        "tasks/batch_and_output/code/*",
+        "tasks/batch_and_output/data/*",
         "tasks/batch_stdio/data/*.*",
         "tasks/batch_fileio/data/*.*",
         "tasks/batch_fileio_managed/code/*",
@@ -85,6 +79,10 @@ PACKAGE_DATA = {
         "tasks/communication_stdio/data/*.*",
         "tasks/communication_stdio_stubbed/code/*",
         "tasks/communication_stdio_stubbed/data/*.*",
+        "tasks/interactive/code/*",
+        "tasks/interactive/data/*.*",
+        "tasks/interactive_many/code/*",
+        "tasks/interactive_many/data/*.*",
         "tasks/outputonly/data/*.*",
         "tasks/outputonly_comparator/code/*",
         "tasks/outputonly_comparator/data/*.*",
@@ -95,60 +93,37 @@ PACKAGE_DATA = {
     ],
 }
 
-
-def find_version():
-    """Return the version string obtained from cms/__init__.py"""
-    path = os.path.join("cms", "__init__.py")
-    with open(path, "rt", encoding="utf-8") as f:
-        version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]",
-                                  f.read(), re.M)
-    if version_match is not None:
-        return version_match.group(1)
-    raise RuntimeError("Unable to find version string.")
-
-
-# We piggyback the translation catalogs compilation onto build_py since
+# We piggyback the translation catalogs compilation onto build since
 # the po and mofiles will be part of the package data for cms.locale,
 # which is collected at this stage.
-class build_py_and_l10n(build_py):
-    def run(self):
-        self.run_command("compile_catalog")
-        # The build command of distutils/setuptools searches the tree
-        # and compiles a list of data files before run() is called and
-        # then stores that value. Hence we need to refresh it.
-        self.data_files = self._get_data_files()
-        super().run()
+class build_with_l10n(build):
+    sub_commands = [('compile_catalog', None)] + build.sub_commands
 
 
 setup(
     name="cms",
-    version=find_version(),
-    author="The CMS development team",
-    author_email="contestms@googlegroups.com",
-    url="https://github.com/cms-dev/cms",
-    download_url="https://github.com/cms-dev/cms/archive/master.tar.gz",
-    description="A contest management system and grader "
-                "for IOI-like programming competitions",
     packages=find_packages(),
     package_data=PACKAGE_DATA,
-    cmdclass={"build_py": build_py_and_l10n},
-    scripts=["scripts/cmsLogService",
-             "scripts/cmsScoringService",
-             "scripts/cmsEvaluationService",
-             "scripts/cmsWorker",
-             "scripts/cmsResourceService",
-             "scripts/cmsChecker",
-             "scripts/cmsContestWebServer",
-             "scripts/cmsAdminWebServer",
-             "scripts/cmsProxyService",
-             "scripts/cmsPrintingService",
-             "scripts/cmsRankingWebServer",
-             "scripts/cmsInitDB",
-             "scripts/cmsDropDB",
-             "scripts/cmsDiscordBot"],
+    cmdclass={"build": build_with_l10n},
+    scripts=[
+        "scripts/cmsLogService",
+        "scripts/cmsScoringService",
+        "scripts/cmsEvaluationService",
+        "scripts/cmsWorker",
+        "scripts/cmsResourceService",
+        "scripts/cmsChecker",
+        "scripts/cmsContestWebServer",
+        "scripts/cmsAdminWebServer",
+        "scripts/cmsProxyService",
+        "scripts/cmsRankingWebServer",
+        "scripts/cmsInitDB",
+        "scripts/cmsDropDB",
+        # AOI: Discord announcement/ranking bot
+        "scripts/cmsDiscordBot",
+    ],
     entry_points={
         "console_scripts": [
-            "cmsRunTests=cmstestsuite.RunTests:main",
+            "cmsRunFunctionalTests=cmstestsuite.RunFunctionalTests:main",
             "cmsAddAdmin=cmscontrib.AddAdmin:main",
             "cmsOJUZGen=cmscontrib.ojuzgen:main",
             "cmsAddParticipation=cmscontrib.AddParticipation:main",
@@ -173,13 +148,18 @@ setup(
             "cmsRemoveSubmissions=cmscontrib.RemoveSubmissions:main",
             "cmsRemoveTask=cmscontrib.RemoveTask:main",
             "cmsRemoveUser=cmscontrib.RemoveUser:main",
+            "cmsSolutionChecker=cmscontrib.SolutionChecker:main",
             "cmsSpoolExporter=cmscontrib.SpoolExporter:main",
             "cmsMake=cmstaskenv.cmsMake:main",
+            "cmsPrometheusExporter=cmscontrib.PrometheusExporter:main",
+            "cmsTelegramBot=cmscontrib.TelegramBot:main",
         ],
         "cms.grading.tasktypes": [
             "Batch=cms.grading.tasktypes.Batch:Batch",
+            "BatchAndOutput=cms.grading.tasktypes.BatchAndOutput:BatchAndOutput",
             "Ojuz=cms.grading.tasktypes.Ojuz:Ojuz",
             "Communication=cms.grading.tasktypes.Communication:Communication",
+            "Interactive=cms.grading.tasktypes.Interactive:Interactive",
             "OutputOnly=cms.grading.tasktypes.OutputOnly:OutputOnly",
             "TwoSteps=cms.grading.tasktypes.TwoSteps:TwoSteps",
         ],
@@ -201,7 +181,6 @@ setup(
             "Java / JDK=cms.grading.languages.java_jdk:JavaJDK",
             "Pascal / fpc=cms.grading.languages.pascal_fpc:PascalFpc",
             "PHP=cms.grading.languages.php:Php",
-            "Python 2 / CPython=cms.grading.languages.python2_cpython:Python2CPython",
             "Python 3 / CPython=cms.grading.languages.python3_cpython:Python3CPython",
             "Python 3 / PyPy=cms.grading.languages.python3_pypy:Python3PyPy",
             "Rust=cms.grading.languages.rust:Rust",
@@ -212,16 +191,4 @@ setup(
             "Typescript=cms.grading.languages.typescript:Typescript",
         ],
     },
-    keywords="ioi programming contest grader management system",
-    license="Affero General Public License v3",
-    classifiers=[
-        "Development Status :: 5 - Production/Stable",
-        "Natural Language :: English",
-        "Operating System :: POSIX :: Linux",
-        "Programming Language :: Python :: 3.8",
-        "License :: OSI Approved :: "
-        "GNU Affero General Public License v3",
-    ],
-    python_requires=">=3.6,<4.0",
-    install_requires=REQUIRES,
 )

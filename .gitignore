@@ -1,4 +1,5 @@
 *~
+.DS_Store
 *.mo
 .*.sw?
 *.pyc
@@ -11,9 +12,14 @@ cms.egg-info
 cache/
 lib/
 log/
+.vagrant/
+codecov/
+.dev/
+test_logs/
 /.idea/
 .vscode/
 /venv/
 /config/rootfs/
 /config/cms.docker.conf
 /docker-data/
+MERGE_NOTES.md

@@ -141,7 +141,7 @@ class FilenameSchema(TypeDecorator):
     @classmethod
     def get_create_command(cls):
         return DDL("CREATE DOMAIN %(domain)s VARCHAR "
-                   "CHECK (VALUE ~ '^[A-Za-z0-9_.-]+(\.%%l)?$') "
+                   "CHECK (VALUE ~ '^[A-Za-z0-9_.-]+(.%%l)?$') "
                    "CHECK (VALUE != '.') "
                    "CHECK (VALUE != '..')",
                    context={"domain": cls.domain_name})
@@ -191,7 +191,7 @@ class FilenameSchemaArray(TypeDecorator):
         return DDL("CREATE DOMAIN %(domain)s VARCHAR[] "
                    "CHECK (array_to_string(VALUE, '') ~ '^[A-Za-z0-9_.%%-]*$') "
                    "CHECK (array_to_string(VALUE, ',') "
-                   "       ~ '^([A-Za-z0-9_.-]+(\.%%l)?(,|$))*$') "
+                   "       ~ '^([A-Za-z0-9_.-]+(.%%l)?(,|$))*$') "
                    "CHECK ('.' != ALL(VALUE)) "
                    "CHECK ('..' != ALL(VALUE))",
                    context={"domain": cls.domain_name})
