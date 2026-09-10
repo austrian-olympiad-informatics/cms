@@ -1,11 +1,13 @@
-{% macro rows(url, contest_url, translation, xsrf_form_html,
+{% macro rows(url, static_url, contest_url, translation, xsrf_form_html,
               actual_phase, task, submissions,
               can_use_tokens, can_play_token, can_play_token_now,
+              tokens_info,
               submissions_download_allowed, official) -%}
 {#
 Render a submission table with all (un)official submissions passed.
 
 url (Url): the URL instance referring to the root of CWS.
+static_url: static url helper constructed from url
 contest_url (Url): the URL instance referring to the main contest page.
 translation (Translation): locale to use to show messages.
 xsrf_form_html (str): input element for the XSRF protection.
@@ -90,16 +92,18 @@ official (boolean): whether to display only the official (true) or unofficial
                 {# loop.revindex is broken: https://github.com/pallets/jinja/issues/794 #}
                 {{ row(
                     url,
+                    static_url,
                     contest_url,
                     translation,
                     xsrf_form_html,
                     actual_phase,
                     s,
-                    submissions|length - loop.index0,
+                    s.opaque_id,
                     show_date,
                     can_use_tokens,
                     can_play_token,
                     can_play_token_now,
+                    tokens_info,
                     submissions_download_allowed) }}
             {% endif %}
         {% endfor %}
@@ -108,21 +112,22 @@ official (boolean): whether to display only the official (true) or unofficial
 </table>
 {%- endmacro %}
 
-{% macro row(url, contest_url, translation, xsrf_form_html,
-             actual_phase, s, s_num, show_date,
+{% macro row(url, static_url, contest_url, translation, xsrf_form_html,
+             actual_phase, s, opaque_id, show_date,
              can_use_tokens, can_play_token, can_play_token_now,
+             tokens_info,
              submissions_download_allowed) -%}
 {#
 Render a row in a submission table.
 
 url (Url): the URL instance referring to the root of CWS.
+static_url: static url helper constructed from url
 contest_url (Url): the URL instance referring to the main contest page.
 translation (Translation): locale to use to show messages.
 xsrf_form_html (str): input element for the XSRF protection.
 actual_phase (int): phase of the contest.
 s (Submission): the submission to display.
-s_num (int): 1-based position of the submission in the list of
-    submissions of the currently logged in participaiton on this task.
+opaque_id (int): opaque id of the submission.
 show_date (bool): whether to display only the time or also the date.
 can_use_tokens (bool): whether tokens are allowed for this task.
 can_play_token (bool): if can_use_tokens is true, whether the user has a
@@ -138,7 +143,7 @@ submissions_download_allowed (bool): whether to allow users to download
 {% set score_type = get_score_type(dataset=task.active_dataset) %}
 {% set sr = s.get_result(task.active_dataset) or undefined %}
 {% set status = sr.get_status() if sr is defined else SubmissionResult.COMPILING  %}
-<tr data-submission="{{ s_num }}" data-status="{{ status }}">
+<tr data-submission="{{ opaque_id }}" data-status="{{ status }}">
 {% if show_date %}
     <td class="datetime">{{ s.timestamp|format_datetime }}</td>
 {% else %}
@@ -147,16 +152,16 @@ submissions_download_allowed (bool): whether to allow users to download
     <td class="status">
 {% if status == SubmissionResult.COMPILING %}
         {% trans %}Compiling...{% endtrans %}
-      <img class="details" src="{{ url("static", "loading.gif") }}" />
+      <img class="details" src="{{ static_url("static", "loading.gif") }}" />
 {% elif status == SubmissionResult.COMPILATION_FAILED %}
         {% trans %}Compilation failed{% endtrans %}
         <a class="details">{% trans %}details{% endtrans %}</a>
 {% elif status == SubmissionResult.EVALUATING %}
         {% trans %}Evaluating...{% endtrans %}
-      <img class="details" src="{{ url("static", "loading.gif") }}" />
+      <img class="details" src="{{ static_url("static", "loading.gif") }}" />
 {% elif status == SubmissionResult.SCORING %}
         {% trans %}Scoring...{% endtrans %}
-      <img class="details" src="{{ url("static", "loading.gif") }}" />
+      <img class="details" src="{{ static_url("static", "loading.gif") }}" />
 {% elif status == SubmissionResult.SCORED %}
         {% trans %}Evaluated{% endtrans %}
         <a class="details">{% trans %}details{% endtrans %}</a>
@@ -164,8 +169,8 @@ submissions_download_allowed (bool): whether to allow users to download
     </td>
 {% if score_type is defined and score_type.max_public_score > 0 %}
     {% if status == SubmissionResult.SCORED %}
-    <td class="public_score {{ get_score_class(sr.public_score, score_type.max_public_score, task.score_precision) }}">
-        {{ score_type.format_score(sr.public_score, score_type.max_public_score, sr.public_score_details, task.score_precision, translation=translation) }}
+    <td class="public_score {{ get_score_class(sr.public_score, score_type.max_public_score) }}">
+        {{ score_type.format_score(sr.public_score, score_type.max_public_score, sr.public_score_details, translation=translation) }}
     </td>
     {% else %}
     <td class="public_score undefined">
@@ -175,8 +180,8 @@ submissions_download_allowed (bool): whether to allow users to download
 {% endif %}
 {% if score_type is defined and score_type.max_public_score < score_type.max_score %}
     {% if status == SubmissionResult.SCORED and (s.token is not none or actual_phase == 3) %}
-    <td class="total_score {{ get_score_class(sr.score, score_type.max_score, task.score_precision) }}">
-        {{ score_type.format_score(sr.score, score_type.max_score, sr.score_details, task.score_precision, translation=translation) }}
+    <td class="total_score {{ get_score_class(sr.score, score_type.max_score) }}">
+        {{ score_type.format_score(sr.score, score_type.max_score, sr.score_details, translation=translation) }}
     </td>
     {% else %}
     <td class="total_score undefined">
@@ -198,7 +203,7 @@ submissions_download_allowed (bool): whether to allow users to download
             {% if s.language is not none %}
                 {% set filename = filename|replace(".%l", (s.language|to_language).source_extension) %}
             {% endif %}
-        <a class="btn" href="{{ contest_url("tasks", task.name, "submissions", s_num, "files", filename) }}">
+        <a class="btn" href="{{ contest_url("tasks", task.name, "submissions", opaque_id, "files", filename) }}">
             {% trans %}Download{% endtrans %}
         </a>
         {% else %}
@@ -216,7 +221,7 @@ submissions_download_allowed (bool): whether to allow users to download
                     {% endif %}
                 {% endif %}
                 <li>
-                    <a href="{{ contest_url("tasks", task.name, "submissions", s_num, "files", filename) }}">
+                    <a href="{{ contest_url("tasks", task.name, "submissions", opaque_id, "files", filename) }}">
                         {{ filename }}
                     </a>
                 </li>
@@ -233,7 +238,7 @@ submissions_download_allowed (bool): whether to allow users to download
         {% else %}
             {% if can_play_token_now %}
               {# Can play a token right now: show the button. #}
-        <form action="{{ contest_url("tasks", task.name, "submissions", s_num, "token") }}" method="POST">
+        <form action="{{ contest_url("tasks", task.name, "submissions", opaque_id, "token") }}" method="POST">
             {{ xsrf_form_html|safe }}
             <button type="submit" class="btn btn-warning">{% trans %}Play!{% endtrans %}</button>
         </form>

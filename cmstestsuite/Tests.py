@@ -20,6 +20,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import cmstestsuite.tasks.batch_and_output as batch_and_output
 import cmstestsuite.tasks.batch_fileio as batch_fileio
 import cmstestsuite.tasks.batch_fileio_managed as batch_fileio_managed
 import cmstestsuite.tasks.batch_stdio as batch_stdio
@@ -32,37 +33,54 @@ import cmstestsuite.tasks.communication_many_stdio_stubbed \
 import cmstestsuite.tasks.communication_stdio as communication_stdio
 import cmstestsuite.tasks.communication_stdio_stubbed \
     as communication_stdio_stubbed
+import cmstestsuite.tasks.interactive as interactive
+import cmstestsuite.tasks.interactive_many as interactive_many
 import cmstestsuite.tasks.outputonly as outputonly
 import cmstestsuite.tasks.outputonly_comparator as outputonly_comparator
 import cmstestsuite.tasks.twosteps as twosteps
 import cmstestsuite.tasks.twosteps_comparator as twosteps_comparator
-from cmstestsuite.Test import Test, CheckOverallScore, CheckCompilationFail, \
+from cmstestsuite.Test import CheckMemoryLimit, Test, CheckOverallScore, CheckCompilationFail, \
     CheckTimeout, CheckTimeoutWall, CheckNonzeroReturn, CheckUserTestEvaluated
 
 
 LANG_CPP = "C++11 / g++"
 LANG_CPP14 = "C++14 / g++"
 LANG_CPP17 = "C++17 / g++"
+LANG_CPP20 = "C++20 / g++"
 LANG_C = "C11 / gcc"
 LANG_HS = "Haskell / ghc"
 LANG_JAVA = "Java / JDK"
 LANG_PASCAL = "Pascal / fpc"
 LANG_PHP = "PHP"
-LANG_PYTHON = "Python 2 / CPython"
 LANG_PYTHON3 = "Python 3 / CPython"
+LANG_PYPY3 = "Python 3 / PyPy"
 LANG_RUST = "Rust"
 LANG_C_SHARP = "C# / Mono"
+
 ALL_LANGUAGES = (
-    LANG_CPP, LANG_CPP14, LANG_CPP17, LANG_C, LANG_HS, LANG_JAVA, LANG_PASCAL,
-    LANG_PHP, LANG_PYTHON, LANG_PYTHON3, LANG_RUST, LANG_C_SHARP
+    LANG_C,
+    LANG_C_SHARP,
+    LANG_CPP, LANG_CPP14, LANG_CPP17, LANG_CPP20,
+    LANG_HS,
+    LANG_JAVA,
+    LANG_PASCAL,
+    LANG_PHP,
+    LANG_PYTHON3, LANG_PYPY3,
+    LANG_RUST,
 )
-NON_INTERPRETED_LANGUAGES = (
-    LANG_C, LANG_CPP, LANG_CPP14, LANG_CPP17, LANG_PASCAL
-)
-COMPILED_LANGUAGES = (
-    LANG_C, LANG_CPP, LANG_CPP14, LANG_CPP17, LANG_PASCAL, LANG_JAVA,
-    LANG_PYTHON, LANG_PYTHON3, LANG_HS, LANG_RUST, LANG_C_SHARP
-)
+
+# Languages which support compilation with a manager/grader.
+# TODO: this should be the same as `ALL_LANGUAGES`.
+MANAGER_LANGUAGES = [
+    lang for lang in ALL_LANGUAGES if lang not in (LANG_HS, LANG_PHP, LANG_RUST)
+]
+
+# Languages for which solutions to be linked to a stub for communication tasks
+# are present under `code/`.
+# TODO: this should be the same as `ALL_LANGUAGES`.
+COMMUNICATION_LANGUAGES = [
+    lang for lang in MANAGER_LANGUAGES if lang not in (LANG_C_SHARP,)
+]
 
 ALL_TESTS = [
 
@@ -73,9 +91,70 @@ ALL_TESTS = [
          alt_filenames={
              LANG_CPP14: ['correct-stdio-cxx14.%l'],
              LANG_CPP17: ['correct-stdio-cxx17.%l'],
+             LANG_CPP20: ['correct-stdio-cxx20.%l'],
          },
          languages=ALL_LANGUAGES,
          checks=[CheckOverallScore(100, 100)]),
+
+    Test('interactive-correct',
+         task=interactive, filenames=['interactive-correct.%l'],
+         languages=(LANG_CPP, LANG_CPP14, LANG_CPP17, LANG_CPP20, LANG_PYTHON3, LANG_PYPY3),
+         checks=[CheckOverallScore(100, 100)]),
+
+    Test('interactive-wrong',
+         task=interactive, filenames=['interactive-wrong.%l'],
+         languages=(LANG_CPP,),
+         checks=[CheckOverallScore(0, 100)]),
+
+    Test('interactive-sleep',
+         task=interactive, filenames=['interactive-sleep.%l'],
+         languages=(LANG_CPP,),
+         checks=[CheckOverallScore(0, 100), CheckTimeoutWall()]),
+
+    Test('interactive-tle',
+         task=interactive, filenames=['interactive-tle.%l'],
+         languages=(LANG_CPP,),
+         checks=[CheckOverallScore(0, 100), CheckTimeout()]),
+
+    Test('interactive-crash',
+         task=interactive, filenames=['interactive-crash.%l'],
+         languages=(LANG_CPP,),
+         checks=[CheckOverallScore(0, 100), CheckNonzeroReturn()]),
+
+    Test('interactive-wrong-protocol',
+         task=interactive, filenames=['interactive-wrong-protocol.%l'],
+         languages=(LANG_CPP,),
+         checks=[CheckOverallScore(0, 100)]),
+
+    Test('interactive-many-correct',
+         task=interactive_many, filenames=['interactive-many-correct.%l'],
+         languages=(LANG_CPP, LANG_CPP14, LANG_CPP17, LANG_CPP20),
+         checks=[CheckOverallScore(100, 100)]),
+
+    Test('interactive-many-wrong',
+         task=interactive_many, filenames=['interactive-many-wrong.%l'],
+         languages=(LANG_CPP,),
+         checks=[CheckOverallScore(0, 100)]),
+
+    Test('interactive-many-early-wa',
+         task=interactive_many, filenames=['interactive-many-early-wa.%l'],
+         languages=(LANG_CPP,),
+         checks=[CheckOverallScore(0, 100)]),
+
+    Test('interactive-many-sleep',
+         task=interactive_many, filenames=['interactive-many-sleep.%l'],
+         languages=(LANG_CPP,),
+         checks=[CheckOverallScore(0, 100), CheckTimeoutWall()]),
+
+    Test('interactive-many-tle',
+         task=interactive_many, filenames=['interactive-many-tle.%l'],
+         languages=(LANG_CPP,),
+         checks=[CheckOverallScore(0, 100), CheckTimeout()]),
+
+    Test('interactive-many-crash',
+         task=interactive_many, filenames=['interactive-many-crash.%l'],
+         languages=(LANG_CPP,),
+         checks=[CheckOverallScore(0, 100), CheckNonzeroReturn()]),
 
     Test('correct-freopen',
          task=batch_fileio, filenames=['correct-freopen.%l'],
@@ -170,7 +249,8 @@ ALL_TESTS = [
 
     Test('compile-fail',
          task=batch_fileio, filenames=['compile-fail.%l'],
-         languages=COMPILED_LANGUAGES,
+         # PHP's compilation step cannot fail, since it is just `cp`.
+         languages=[lang for lang in ALL_LANGUAGES if lang != LANG_PHP],
          checks=[CheckCompilationFail()]),
 
     Test('compile-timeout',
@@ -237,66 +317,65 @@ ALL_TESTS = [
 
     Test('oom-static',
          task=batch_stdio, filenames=['oom-static.%l'],
-         languages=NON_INTERPRETED_LANGUAGES,
-         checks=[CheckOverallScore(0, 100)]),
+         languages=(LANG_C, LANG_CPP, LANG_CPP14,
+                    LANG_CPP17, LANG_CPP20, LANG_PASCAL),
+         checks=[CheckOverallScore(0, 100), CheckMemoryLimit()]),
 
     Test('oom-heap',
          task=batch_stdio, filenames=['oom-heap.%l'],
          languages=ALL_LANGUAGES,
-         checks=[CheckOverallScore(0, 100)]),
+         checks=[CheckOverallScore(0, 100), CheckMemoryLimit()]),
 
-    # Tasks with graders. PHP is not yet supported.
+    # Tasks with graders.
 
     Test('managed-correct',
          task=batch_fileio_managed, filenames=['managed-correct.%l'],
-         languages=(LANG_C, LANG_CPP, LANG_PASCAL, LANG_PYTHON3, LANG_JAVA,
-                    LANG_C_SHARP),
+         languages=MANAGER_LANGUAGES,
          checks=[CheckOverallScore(100, 100)],
          user_tests=True, user_managers=['grader.%l'],
          user_checks=[CheckUserTestEvaluated()]),
 
     Test('managed-incorrect',
          task=batch_fileio_managed, filenames=['managed-incorrect.%l'],
-         languages=(LANG_C, LANG_CPP, LANG_PASCAL, LANG_PYTHON3, LANG_JAVA,
-                    LANG_C_SHARP),
+         languages=MANAGER_LANGUAGES,
          checks=[CheckOverallScore(0, 100)]),
 
-    # Communication tasks. PHP is not yet supported.
+    # Communication tasks.
 
     Test('communication-fifoio-correct',
          task=communication_fifoio_stubbed,
          filenames=['communication-stubbed-correct.%l'],
-         languages=(LANG_C, LANG_CPP, LANG_PASCAL, LANG_PYTHON3, LANG_JAVA),
+         languages=COMMUNICATION_LANGUAGES,
          checks=[CheckOverallScore(100, 100)]),
 
     Test('communication-fifoio-incorrect',
          task=communication_fifoio_stubbed,
          filenames=['communication-stubbed-incorrect.%l'],
-         languages=(LANG_C, LANG_CPP, LANG_PASCAL, LANG_PYTHON3, LANG_JAVA),
+         languages=COMMUNICATION_LANGUAGES,
          checks=[CheckOverallScore(0, 100)]),
 
     Test('communication-stdio-correct',
          task=communication_stdio_stubbed,
          filenames=['communication-stubbed-correct.%l'],
-         languages=(LANG_C, LANG_CPP, LANG_PASCAL, LANG_PYTHON3, LANG_JAVA),
+         languages=COMMUNICATION_LANGUAGES,
          checks=[CheckOverallScore(100, 100)]),
 
     Test('communication-stdio-incorrect',
          task=communication_stdio_stubbed,
          filenames=['communication-stubbed-incorrect.%l'],
-         languages=(LANG_C, LANG_CPP, LANG_PASCAL, LANG_PYTHON3, LANG_JAVA),
+         languages=COMMUNICATION_LANGUAGES,
          checks=[CheckOverallScore(0, 100)]),
 
     Test('communication-stdio-unstubbed-correct',
          task=communication_stdio,
          filenames=['communication-stdio-correct.%l'],
-         languages=(LANG_C, LANG_CPP, LANG_PASCAL, LANG_PYTHON3, LANG_JAVA),
+         languages=COMMUNICATION_LANGUAGES,
          checks=[CheckOverallScore(100, 100)]),
 
     Test('communication-stdio-unstubbed-incorrect',
          task=communication_stdio,
          filenames=['communication-stdio-incorrect.%l'],
-         languages=(LANG_C, LANG_CPP, LANG_PASCAL, LANG_PYTHON3, LANG_JAVA),
+         languages=COMMUNICATION_LANGUAGES,
          checks=[CheckOverallScore(0, 100)]),
 
     # Communication tasks with two processes.
@@ -305,28 +384,28 @@ ALL_TESTS = [
          task=communication_many_fifoio_stubbed,
          filenames=['communication-many-correct-user1.%l',
                     'communication-many-correct-user2.%l'],
-         languages=(LANG_C, LANG_CPP, LANG_PASCAL, LANG_PYTHON3, LANG_JAVA),
+         languages=COMMUNICATION_LANGUAGES,
          checks=[CheckOverallScore(100, 100)]),
 
     Test('communication-many-fifoio-incorrect',
          task=communication_many_fifoio_stubbed,
          filenames=['communication-many-incorrect-user1.%l',
                     'communication-many-incorrect-user2.%l'],
-         languages=(LANG_C, LANG_CPP, LANG_PASCAL, LANG_PYTHON3, LANG_JAVA),
+         languages=COMMUNICATION_LANGUAGES,
          checks=[CheckOverallScore(0, 100)]),
 
     Test('communication-many-stdio-correct',
          task=communication_many_stdio_stubbed,
          filenames=['communication-many-correct-user1.%l',
                     'communication-many-correct-user2.%l'],
-         languages=(LANG_C, LANG_CPP, LANG_PASCAL, LANG_PYTHON3, LANG_JAVA),
+         languages=COMMUNICATION_LANGUAGES,
          checks=[CheckOverallScore(100, 100)]),
 
     Test('communication-many-stdio-incorrect',
          task=communication_many_stdio_stubbed,
          filenames=['communication-many-incorrect-user1.%l',
                     'communication-many-incorrect-user2.%l'],
-         languages=(LANG_C, LANG_CPP, LANG_PASCAL, LANG_PYTHON3, LANG_JAVA),
+         languages=COMMUNICATION_LANGUAGES,
          checks=[CheckOverallScore(0, 100)]),
 
     # TwoSteps
@@ -366,6 +445,58 @@ ALL_TESTS = [
                                               "twosteps-correct-second.%l"],
          languages=(LANG_C,),
          checks=[CheckOverallScore(0, 100)]),
+
+
+    # BatchAndOutput
+    Test('batchandoutput-batchonly-correct',
+         task=batch_and_output, filenames=[
+             "output-0-stdio.%l", None, None, None],
+         languages=(LANG_CPP,),
+         checks=[CheckOverallScore(50, 100)]),
+
+    Test('batchandoutput-batchonly-incorrect',
+         task=batch_and_output, filenames=[
+             "output-1-stdio.%l", None, None, None],
+         languages=(LANG_CPP,),
+         checks=[CheckOverallScore(0, 100)]),
+
+    Test('batchandoutput-outputonly-correct',
+         task=batch_and_output, filenames=[
+             None, "outputonly-1.txt", "outputonly-1.txt", "outputonly-0.txt"],
+         languages=(LANG_CPP,),
+         checks=[CheckOverallScore(75, 100)]),
+
+    Test('batchandoutput-outputonly-incorrect',
+         task=batch_and_output, filenames=[
+             None, "outputonly-0.txt", "outputonly-0.txt", "outputonly-1.txt"],
+         languages=(LANG_CPP,),
+         checks=[CheckOverallScore(0, 100)]),
+
+    Test('batchandoutput-mixed-correct',
+         task=batch_and_output, filenames=[
+             "output-0-stdio.%l", "outputonly-1.txt", "outputonly-1.txt", "outputonly-0.txt"],
+         languages=(LANG_CPP,),
+         checks=[CheckOverallScore(100, 100)]),
+
+    Test('batchandoutput-mixed-incorrect',
+         task=batch_and_output, filenames=[
+             "output-1-stdio.%l", "outputonly-0.txt", "outputonly-0.txt", "outputonly-1.txt"],
+         languages=(LANG_CPP,),
+         checks=[CheckOverallScore(0, 100)]),
+
+    Test('batchandoutput-tle',
+         task=batch_and_output, filenames=[
+             "timeout-cputime.%l", "outputonly-1.txt", "outputonly-1.txt", "outputonly-0.txt"],
+         languages=(LANG_CPP,),
+         checks=[CheckOverallScore(75, 100)]),
+
+    # TODO(veluca): are these the semantics we want?
+    Test('batchandoutput-compile-fail',
+         task=batch_and_output, filenames=[
+             "compile-fail.%l", "outputonly-1.txt", "outputonly-1.txt", "outputonly-0.txt"],
+         languages=(LANG_CPP,),
+         checks=[CheckCompilationFail()]),
+
 
     # Writing to files not allowed.
 

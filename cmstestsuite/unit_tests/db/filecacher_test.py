@@ -29,7 +29,6 @@ import shutil
 import unittest
 from io import BytesIO
 
-# Needs to be first to allow for monkey patching the DB connection string.
 from cmstestsuite.unit_tests.databasemixin import DatabaseMixin
 
 from cms.db.filecacher import FileCacher
@@ -45,13 +44,13 @@ class RandomFile:
         self.dim = dim
         self.digester = Digester()
 
-    def read(self, byte_num):
+    def read(self, byte_num: int) -> bytes:
         """Read byte_num bytes from the source and return them,
         updating the hashing.
 
-        byte_num (int): number of bytes to read.
+        byte_num: number of bytes to read.
 
-        return (string): byte_num bytes of content.
+        return: byte_num bytes of content.
 
         """
         if byte_num > self.dim:
@@ -70,10 +69,10 @@ class RandomFile:
         pass
 
     @property
-    def digest(self):
+    def digest(self) -> str:
         """Digest of the data read from the source file.
 
-        return (string): digest.
+        return: digest.
 
         """
         return self.digester.digest()
@@ -86,22 +85,22 @@ class HashingFile:
     def __init__(self):
         self.digester = Digester()
 
-    def write(self, buf):
+    def write(self, buf: bytes) -> int:
         """Update the hashing with the content of buf.
 
-        buf (string): new content for the file.
+        buf: new content for the file.
 
-        return (int): length of buf.
+        return: length of buf.
 
         """
         self.digester.update(buf)
         return len(buf)
 
     @property
-    def digest(self):
+    def digest(self) -> str:
         """Digest of the data written in the file.
 
-        return (string): digest.
+        return: digest.
 
         """
         return self.digester.digest()
@@ -119,7 +118,10 @@ class TestFileCacherBase:
 
     """
 
-    def _setUp(self, file_cacher):
+    # Tell pytest not to collect this class as test
+    __test__ = False
+
+    def setUp(self, file_cacher):
         """Common initialization that should be called by derived classes."""
         self.file_cacher = file_cacher
         self.cache_base_path = self.file_cacher.file_dir
@@ -360,19 +362,22 @@ class TestFileCacherBase:
 class TestFileCacherDB(TestFileCacherBase, DatabaseMixin, unittest.TestCase):
     """Tests for the FileCacher service with a database backend."""
 
+    # Tell pytest to collect this class as test
+    __test__ = True
+
     def setUp(self):
-        super().setUp()
-        file_cacher = FileCacher()
-        self._setUp(file_cacher)
+        DatabaseMixin.setUp(self)
+        TestFileCacherBase.setUp(self, FileCacher())
 
 
 class TestFileCacherFS(TestFileCacherBase, unittest.TestCase):
     """Tests for the FileCacher service with a filesystem backend."""
 
+    # Tell pytest to collect this class as test
+    __test__ = True
+
     def setUp(self):
-        super().setUp()
-        file_cacher = FileCacher(path="fs-storage")
-        self._setUp(file_cacher)
+        super().setUp(FileCacher(path="fs-storage"))
 
     def tearDown(self):
         shutil.rmtree("fs-storage", ignore_errors=True)

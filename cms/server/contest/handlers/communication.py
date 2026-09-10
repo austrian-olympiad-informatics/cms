@@ -29,10 +29,14 @@
 
 import logging
 
+import collections
 try:
-    import tornado4.web as tornado_web
-except ImportError:
-    import tornado.web as tornado_web
+    collections.MutableMapping
+except:
+    # Monkey-patch: Tornado 4.5.3 does not work on Python 3.11 by default
+    collections.MutableMapping = collections.abc.MutableMapping
+
+import tornado.web
 
 from cms.server import multi_contest
 from cms.server.contest.communication import accept_question, \
@@ -53,7 +57,7 @@ class CommunicationHandler(ContestHandler):
     and the contest managers..
 
     """
-    @tornado_web.authenticated
+    @tornado.web.authenticated
     @multi_contest
     def get(self):
         self.render("communication.html", **self.r_params)
@@ -63,7 +67,7 @@ class QuestionHandler(ContestHandler):
     """Called when the user submits a question.
 
     """
-    @tornado_web.authenticated
+    @tornado.web.authenticated
     @multi_contest
     def post(self):
         try:
@@ -72,7 +76,7 @@ class QuestionHandler(ContestHandler):
                             self.get_argument("question_text", ""))
             self.sql_session.commit()
         except QuestionsNotAllowed:
-            raise tornado_web.HTTPError(404)
+            raise tornado.web.HTTPError(404)
         except UnacceptableQuestion as e:
             self.notify_error(e.subject, e.text, e.text_params)
         else:

@@ -1,3 +1,11 @@
+.dockerignore
+Dockerfile
+.vagrant/
+codecov/
+.dev/
+.venv/
+.git/
+.jj/
 *~
 *.mo
 .*.sw?

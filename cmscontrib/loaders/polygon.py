@@ -20,18 +20,21 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import imp
 import logging
 import os
+import shutil
 import subprocess
 import xml.etree.ElementTree as ET
+import importlib.resources
+import importlib.util
+import tempfile
 from datetime import datetime, timedelta
 
 from cms import config
 from cms.db import Contest, User, Task, Statement, Dataset, Manager, Testcase
 from cmscommon.crypto import build_password
 from cmscontrib import touch
-from .base_loader import ContestLoader, TaskLoader, UserLoader
+from .base_loader import ContestLoader, TaskLoader, UserLoader, LANGUAGE_MAP
 
 
 logger = logging.getLogger(__name__)
@@ -39,70 +42,6 @@ logger = logging.getLogger(__name__)
 
 def make_timedelta(t):
     return timedelta(seconds=t)
-
-
-LANGUAGE_MAP = {
-    'afrikaans': 'af',
-    'arabic': 'ar',
-    'armenian': 'hy',
-    'azerbaijani': 'az',
-    'belarusian': 'be',
-    'bengali': 'bn',
-    'bosnian': 'bs',
-    'bulgarian': 'bg',
-    'catalan': 'ca',
-    'chinese': 'zh',
-    'croatian': 'hr',
-    'czech': 'cs',
-    'danish': 'da',
-    'dutch': 'nl',
-    'english': 'en',
-    'estonian': 'et',
-    'filipino': 'fil',
-    'finnish': 'fi',
-    'french': 'fr',
-    'georgian': 'ka',
-    'german': 'de',
-    'greek': 'el',
-    'hebrew': 'he',
-    'hindi': 'hi',
-    'hungarian': 'hu',
-    'icelandic': 'is',
-    'indonesian': 'id',
-    'irish': 'ga',
-    'italian': 'it',
-    'japanese': 'ja',
-    'kazakh': 'kk',
-    'korean': 'ko',
-    'kyrgyz': 'ky',
-    'latvian': 'lv',
-    'lithuanian': 'lt',
-    'macedonian': 'mk',
-    'malay': 'ms',
-    'mongolian': 'mn',
-    'norwegian': 'no',
-    'persian': 'fa',
-    'polish': 'pl',
-    'portuguese': 'pt',
-    'romanian': 'ro',
-    'russian': 'ru',
-    'serbian': 'sr',
-    'sinhala': 'si',
-    'slovak': 'sk',
-    'slovene': 'sl',
-    'spanish': 'es',
-    'swedish': 'sv',
-    'tajik': 'tg',
-    'tamil': 'ta',
-    'thai': 'th',
-    'turkish': 'tr',
-    'turkmen': 'tk',
-    'ukrainian': 'uk',
-    'urdu': 'ur',
-    'uzbek': 'uz',
-    'vietnamese': 'vi',
-    'other': 'other',
-}
 
 
 class PolygonTaskLoader(TaskLoader):
@@ -209,10 +148,10 @@ class PolygonTaskLoader(TaskLoader):
         task_cms_conf = None
         if os.path.exists(task_cms_conf_path):
             logger.info("Found additional CMS options for task %s.", name)
-            with open(task_cms_conf_path, 'rb') as f:
-                task_cms_conf = imp.load_module('cms_conf', f,
-                                                task_cms_conf_path,
-                                                ('.py', 'r', imp.PY_SOURCE))
+            spec = importlib.util.spec_from_file_location(
+                'cms_conf', task_cms_conf_path)
+            task_cms_conf = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(task_cms_conf)
         if task_cms_conf is not None and hasattr(task_cms_conf, "general"):
             args.update(task_cms_conf.general)
 
@@ -245,23 +184,26 @@ class PolygonTaskLoader(TaskLoader):
 
             if os.path.exists(checker_src):
                 logger.info("Checker found, compiling")
-                checker_exe = os.path.join(
-                    os.path.dirname(checker_src), "checker")
-                testlib_path = "/usr/local/include/cms"
-                testlib_include = os.path.join(testlib_path, "testlib.h")
-                if not config.installed:
-                    testlib_path = os.path.join(os.path.dirname(__file__),
-                                                "polygon")
-                code = subprocess.call(["g++", "-x", "c++", "-O2", "-static",
-                                        "-DCMS", "-I", testlib_path,
-                                        "-include", testlib_include,
-                                        "-o", checker_exe, checker_src])
-                if code != 0:
-                    logger.critical("Could not compile checker")
-                    return None
-                digest = self.file_cacher.put_file_from_path(
-                    checker_exe,
-                    "Manager for task %s" % name)
+                with tempfile.TemporaryDirectory() as tempdir:
+                    # We need to override the testlib.h from the polygon
+                    # package with our patched version. Since the package
+                    # includes a testlib.h too, the easiest way to achieve this
+                    # is to copy the checker source to a temporary directory.
+                    testlib_res = importlib.resources.files("cmscontrib.loaders").joinpath("polygon/testlib.h")
+                    with testlib_res.open('rb') as src, open(tempdir + "/testlib.h", "wb") as dst:
+                        shutil.copyfileobj(src, dst)
+                    new_checker_src = tempdir + '/check.cpp'
+                    output_path = tempdir + '/check'
+                    shutil.copyfile(checker_src, new_checker_src)
+                    code = subprocess.call(["g++", "-x", "c++", "-O2",
+                                            "-static", "-DCMS", "-o",
+                                            output_path, new_checker_src])
+                    if code != 0:
+                        logger.critical("Could not compile checker")
+                        return None
+                    digest = self.file_cacher.put_file_from_path(
+                        output_path,
+                        "Manager for task %s" % name)
                 args["managers"]["checker"] = Manager("checker", digest)
                 evaluation_param = "comparator"
             else:
